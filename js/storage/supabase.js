@@ -29,8 +29,12 @@ async function createAcorn(nickname) {
       mini_me: '🌰',
       mini_me_bg: '#EAF6FF',
       tastes: {
-        interests: [], music: [], mood: [],
-        favorites: '', currently: '', needs: ''
+        interests: [],
+        music: [],
+        mood: [],
+        favorites: '',
+        currently: '',
+        needs: ''
       }
     }])
     .select()
@@ -131,8 +135,12 @@ async function updateProfile(updates) {
 async function getTastes() {
   const profile = await getProfile();
   return (profile && profile.tastes) || {
-    interests: [], music: [], mood: [],
-    favorites: '', currently: '', needs: ''
+    interests: [],
+    music: [],
+    mood: [],
+    favorites: '',
+    currently: '',
+    needs: ''
   };
 }
 
@@ -144,7 +152,9 @@ async function updateTastes(tastes) {
 
 async function getRoom() {
   const { data: { user } } = await sb.auth.getUser();
-  if (!user) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  if (!user) {
+    return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  }
 
   const { data, error } = await sb
     .from('rooms')
@@ -152,7 +162,9 @@ async function getRoom() {
     .eq('user_id', user.id)
     .single();
 
-  if (error) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  if (error) {
+    return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  }
   return data;
 }
 
@@ -285,11 +297,22 @@ async function getAllProfiles() {
 // ---------- Expose ----------
 
 window.DotoriSupabase = {
-  createAcorn, loadAcorn, getSession, logout,
-  getProfile, getProfileByDotoriId, updateProfile,
-  getTastes, updateTastes,
-  getRoom, saveRoom,
-  getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
-  bumpVisit, getVisits,
+  createAcorn,
+  loadAcorn,
+  getSession,
+  logout,
+  getProfile,
+  getProfileByDotoriId,
+  updateProfile,
+  getTastes,
+  updateTastes,
+  getRoom,
+  saveRoom,
+  getGuestbook,
+  addGuestbookEntry,
+  deleteGuestbookEntry,
+  replyToGuestbookEntry,
+  bumpVisit,
+  getVisits,
   getAllProfiles
 };
