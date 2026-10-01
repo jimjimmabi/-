@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>도토리숲 — Dotori Forest</title>
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/2008.css">
+</head>
+<body>
+
+  <!-- ===== WELCOME / LOGIN SCREEN ===== -->
+  <div id="welcome-screen">
+    <div class="welcome-box">
+      <div class="welcome-logo">
+        <span class="acorn">🌰</span>
+        <h1>도토리숲</h1>
+        <p class="welcome-sub">Dotori Forest</p>
+      </div>
+
+      <p class="welcome-tagline">
+        도토리를 모으는 작은 숲
+      </p>
+
+      <div class="welcome-form">
+        <label for="nickname-input">닉네임</label>
+        <input
+          type="text"
+          id="nickname-input"
+          maxlength="12"
+          placeholder="숲에서 사용할 이름"
+          autocomplete="off"
+        >
+
+        <button id="create-acorn-btn">
+          🌰 새 도토리 만들기
+        </button>
+      </div>
+
+      <div class="welcome-load">
+        <span>이미 도토리가 있나요?</span>
+        <button id="load-acorn-btn" class="link-btn">
+          기존 도토리 불러오기
+        </button>
+      </div>
+
+      <p class="welcome-dedication">
+        이 숲은 한 사람에게 바칩니다.<br>
+        외로웠던 저에게, 친구가 되어준 그 사람에게.<br>
+        그 사람이 알려줬어요. 세상에, 진짜로 당신을 걱정하는 사람이 있다는 걸.<br>
+        <span class="en">This forest is dedicated to one person.<br>
+        To the one who became my friend when I was lonely.<br>
+        She taught me that there are people in this world who genuinely care about you.</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== MAIN SITE (hidden until logged in) ===== -->
+  <div id="main-site" class="hidden">
+
+    <!-- HEADER -->
+    <header class="site-header">
+      <div class="header-top">
+        <div class="header-title">
+          <span class="acorn">🌰</span>
+          <a href="#" id="home-link">도토리숲</a>
+        </div>
+        <div class="header-right">
+          <span class="header-date" id="header-date">2008년 3월 14일</span>
+          <span class="header-divider">|</span>
+          <a href="#" id="inbox-link" class="header-icon">
+            ✉ <span id="inbox-count">0</span>
+          </a>
+          <a href="#" id="settings-link" class="header-icon">⚙</a>
+          <a href="#" id="logout-link" class="header-icon">✕</a>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <nav class="site-tabs">
+        <a href="#" data-tab="home" class="tab active">홈</a>
+        <a href="#" data-tab="room" class="tab">미니룸</a>
+        <a href="#" data-tab="album" class="tab">사진첩</a>
+        <a href="#" data-tab="guestbook" class="tab">방명록</a>
+        <a href="#" data-tab="plaza" class="tab">도토리 광장</a>
+        <a href="#" data-tab="taste" class="tab">취향 찾기</a>
+      </nav>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="site-main">
+
+      <!-- ===== HOME TAB ===== -->
+      <section id="tab-home" class="tab-content active">
+        <div class="home-layout">
+
+          <!-- Left: Mini-Me + status -->
+          <div class="home-left">
+            <div class="panel mini-me-panel">
+              <div class="mini-me-box" id="mini-me-box">
+                <span class="mini-me-placeholder">🌰</span>
+              </div>
+              <div class="mini-me-name" id="mini-me-name">닉네임</div>
+              <div class="mini-me-status" id="mini-me-status">
+                오늘도 화이팅 ♡
+              </div>
+            </div>
+
+            <div class="panel counter-panel">
+              <div class="counter-row">
+                <span>Today</span>
+                <span id="counter-today">1</span>
+              </div>
+              <div class="counter-row">
+                <span>Total</span>
+                <span id="counter-total">1</span>
+              </div>
+            </div>
+
+            <div class="panel ilchon-panel">
+              <div class="panel-title">일촌</div>
+              <div class="ilchon-count">
+                <span id="ilchon-count">0</span>명
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: BGM + profile -->
+          <div class="home-center">
+            <div class="panel bgm-panel">
+              <div class="panel-title">BGM</div>
+              <div class="bgm-player">
+                <button id="bgm-play-btn" class="bgm-btn">▶</button>
+                <span id="bgm-title" class="bgm-title">— 곡을 선택해주세요 —</span>
+              </div>
+              <button id="bgm-select-btn" class="small-btn">BGM 설정</button>
+            </div>
+
+            <div class="panel status-panel">
+              <div class="panel-title">상태 메시지</div>
+              <div class="status-display" id="status-display">
+                오늘도 화이팅 ♡
+              </div>
+              <button id="status-edit-btn" class="small-btn">수정</button>
+            </div>
+
+            <div class="panel taste-preview-panel">
+              <div class="panel-title">취향 찾기</div>
+              <p class="taste-preview-text">
+                당신과 비슷한 사람들을 찾아보세요.
+              </p>
+              <button id="taste-go-btn" class="small-btn">
+                🌱 취향 찾기
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Recent guestbook -->
+          <div class="home-right">
+            <div class="panel guestbook-preview-panel">
+              <div class="panel-title">최근 방명록</div>
+              <div id="guestbook-preview" class="guestbook-preview">
+                <p class="empty-message">아직 방명록이 비어있어요.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ===== OTHER TABS (placeholders for now) ===== -->
+      <section id="tab-room" class="tab-content">
+        <div class="panel placeholder-panel">
+          <h2>미니룸</h2>
+          <p>여기에 미니룸 편집기가 들어갑니다.</p>
+          <p class="muted">— Weekend 2에서 만들 예정 —</p>
+        </div>
+      </section>
+
+      <section id="tab-album" class="tab-content">
+        <div class="panel placeholder-panel">
+          <h2>사진첩</h2>
+          <p>여기에 사진첩이 들어갑니다.</p>
+          <p class="muted">— Weekend 3에서 만들 예정 —</p>
+        </div>
+      </section>
+
+      <section id="tab-guestbook" class="tab-content">
+        <div class="panel placeholder-panel">
+          <h2>방명록</h2>
+          <p>여기에 방명록이 들어갑니다.</p>
+          <p class="muted">— Weekend 3에서 만들 예정 —</p>
+        </div>
+      </section>
+
+      <section id="tab-plaza" class="tab-content">
+        <div class="panel placeholder-panel">
+          <h2>도토리 광장</h2>
+          <p>여기에 자료실이 들어갑니다.</p>
+          <p class="muted">— Weekend 4에서 만들 예정 —</p>
+        </div>
+      </section>
+
+      <section id="tab-taste" class="tab-content">
+        <div class="panel placeholder-panel">
+          <h2>취향 찾기</h2>
+          <p>여기에 취향 찾기가 들어갑니다.</p>
+          <p class="muted">— Weekend 8에서 만들 예정 —</p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+      <span class="time-capsule-link" id="time-capsule-link">
+        [ 저장된 시간: 2008.03.14 ]
+      </span>
+      <p class="footer-dedication">
+        도토리숲은 광고도, 알고리즘도, 팔로워 수도 없습니다.<br>
+        그냥, 외로운 사람들이 서로를 찾는 작은 숲입니다.
+      </p>
+    </footer>
+
+  </div>
+
+  <!-- ===== MODALS ===== -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span id="modal-title">알림</span>
+        <button id="modal-close" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- dynamic -->
+      </div>
+      <div class="modal-footer" id="modal-footer">
+        <!-- dynamic -->
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/storage/local.js"></script>
+  <script src="js/storage/index.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
