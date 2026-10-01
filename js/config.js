@@ -2,13 +2,10 @@
 // 도토리숲 — Configuration
 // ============================================
 
-// Flip this to true when you're ready to go online (Weekend 7)
-export const USE_SUPABASE = false;
+window.USE_SUPABASE = true;
 
-// Supabase credentials (fill in at Weekend 7)
-export const SUPABASE_URL = '';
-export const SUPABASE_ANON_KEY = '';
+window.SUPABASE_URL = 'https://xdqmsrferkstomzytkoh.supabase.co';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcW1zcmZlcmtzdG9tenl0a29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NzU5NzksImV4cCI6MjEwNjQ1MTk3OX0.d-XCXnr8LVDcoFpZCKRMfBY3x0YdupUsJHDcyX7zEB4';
 
-// Site metadata
-export const SITE_NAME = '도토리숲';
-export const SITE_YEAR = 2008;
+window.SITE_NAME = '도토리숲';
+window.SITE_YEAR = 2008;
