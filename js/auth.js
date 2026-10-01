@@ -11,15 +11,11 @@ function initAuth() {
   const loadBtn = document.getElementById('load-acorn-btn');
   const logoutLink = document.getElementById('logout-link');
 
-  // ---------- Check existing session ----------
-
   const session = DotoriStorage.getSession();
   if (session && session.loggedIn) {
     showMainSite();
     return;
   }
-
-  // ---------- Create new acorn ----------
 
   createBtn.addEventListener('click', () => {
     const nickname = nicknameInput.value.trim();
@@ -52,8 +48,6 @@ function initAuth() {
     );
   });
 
-  // ---------- Load existing acorn ----------
-
   loadBtn.addEventListener('click', () => {
     const profile = DotoriStorage.getProfile();
 
@@ -68,13 +62,9 @@ function initAuth() {
     showMainSite();
   });
 
-  // ---------- Enter key ----------
-
   nicknameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') createBtn.click();
   });
-
-  // ---------- Logout ----------
 
   logoutLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -87,8 +77,6 @@ function initAuth() {
       }}
     ]);
   });
-
-  // ---------- Show main site ----------
 
   function showMainSite() {
     welcomeScreen.classList.add('hidden');

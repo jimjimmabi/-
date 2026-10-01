@@ -10,10 +10,9 @@ const STORAGE_KEYS = {
   RESOURCES: 'dotori_resources',
   NOTES: 'dotori_notes',
   WARM_WORDS: 'dotori_warm_words',
-  SESSION: 'dotori_session'
+  SESSION: 'dotori_session',
+  VISITS: 'dotori_visits'
 };
-
-// ---------- Helpers ----------
 
 function read(key, fallback) {
   try {
@@ -34,8 +33,6 @@ function write(key, value) {
   }
 }
 
-// ---------- ID generation ----------
-
 function generateDotoriId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let id = '';
@@ -53,7 +50,8 @@ function createAcorn(nickname) {
     dotori_id: generateDotoriId(),
     nickname: nickname,
     status_message: '오늘도 화이팅 ♡',
-    mini_me_color: '#FF9EC4',
+    mini_me: '🌰',
+    mini_me_bg: '#EAF6FF',
     tastes: {
       interests: [],
       music: [],
@@ -68,7 +66,6 @@ function createAcorn(nickname) {
   write(STORAGE_KEYS.PROFILE, profile);
   write(STORAGE_KEYS.SESSION, { loggedIn: true, dotori_id: profile.dotori_id });
 
-  // Initialize empty data
   write(STORAGE_KEYS.ROOM, { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null });
   write(STORAGE_KEYS.GUESTBOOK, []);
   write(STORAGE_KEYS.ALBUM, []);
@@ -109,6 +106,20 @@ function updateProfile(updates) {
   return updated;
 }
 
+// ---------- Tastes ----------
+
+function getTastes() {
+  const profile = getProfile();
+  return (profile && profile.tastes) || {
+    interests: [], music: [], mood: [],
+    favorites: '', currently: '', needs: ''
+  };
+}
+
+function updateTastes(tastes) {
+  return updateProfile({ tastes: tastes });
+}
+
 // ---------- Room ----------
 
 function getRoom() {
@@ -141,6 +152,47 @@ function addGuestbookEntry(entry) {
   return newEntry;
 }
 
+function deleteGuestbookEntry(id) {
+  const list = getGuestbook().filter((e) => e.id !== id);
+  write(STORAGE_KEYS.GUESTBOOK, list);
+  return true;
+}
+
+function replyToGuestbookEntry(id, replyText) {
+  const list = getGuestbook();
+  const entry = list.find((e) => e.id === id);
+  if (!entry) return false;
+  entry.reply = replyText;
+  write(STORAGE_KEYS.GUESTBOOK, list);
+  return true;
+}
+
+// ---------- Visits counter ----------
+
+function bumpVisit() {
+  const today = new Date().toISOString().slice(0, 10);
+  const visits = read(STORAGE_KEYS.VISITS, { today: today, todayCount: 0, total: 0 });
+
+  if (visits.today !== today) {
+    visits.today = today;
+    visits.todayCount = 0;
+  }
+  visits.todayCount += 1;
+  visits.total += 1;
+
+  write(STORAGE_KEYS.VISITS, visits);
+  return visits;
+}
+
+function getVisits() {
+  const today = new Date().toISOString().slice(0, 10);
+  const visits = read(STORAGE_KEYS.VISITS, { today: today, todayCount: 0, total: 0 });
+  if (visits.today !== today) {
+    return { today: today, todayCount: 0, total: visits.total };
+  }
+  return visits;
+}
+
 // ---------- Export / Import ----------
 
 function exportAcorn() {
@@ -170,20 +222,15 @@ function importAcorn(data) {
   return true;
 }
 
-// ---------- Expose globally (for non-module use) ----------
+// ---------- Expose ----------
 
 window.DotoriLocal = {
-  createAcorn,
-  loadAcorn,
-  getSession,
-  logout,
-  getProfile,
-  updateProfile,
-  getRoom,
-  saveRoom,
-  getGuestbook,
-  addGuestbookEntry,
-  exportAcorn,
-  importAcorn,
+  createAcorn, loadAcorn, getSession, logout,
+  getProfile, updateProfile,
+  getTastes, updateTastes,
+  getRoom, saveRoom,
+  getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
+  bumpVisit, getVisits,
+  exportAcorn, importAcorn,
   STORAGE_KEYS
 };

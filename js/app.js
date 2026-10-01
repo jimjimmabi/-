@@ -56,35 +56,67 @@ function initTabs() {
 // ---------- Home rendering ----------
 
 function renderHome(profile) {
-  // Nickname
+  if (!profile) profile = DotoriStorage.getProfile();
+  if (!profile) return;
+
+  const miniMeBox = document.getElementById('mini-me-box');
+  if (miniMeBox) {
+    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
+    miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
+  }
+
   const nameEl = document.getElementById('mini-me-name');
   if (nameEl) nameEl.textContent = profile.nickname;
 
-  // Status
   const statusEl = document.getElementById('mini-me-status');
   const statusDisplay = document.getElementById('status-display');
-  if (statusEl) statusEl.textContent = profile.status_message || '';
-  if (statusDisplay) statusDisplay.textContent = profile.status_message || '';
+  const status = profile.status_message || '오늘도 화이팅 ♡';
+  if (statusEl) statusEl.textContent = status;
+  if (statusDisplay) statusDisplay.textContent = status;
 
-  // Date (fixed at 2008 for now)
   const dateEl = document.getElementById('header-date');
   if (dateEl) dateEl.textContent = '2008년 3월 14일';
 
-  // Counters (start at 1 for the user's own visit)
+  const visits = DotoriStorage.bumpVisit();
   const todayEl = document.getElementById('counter-today');
   const totalEl = document.getElementById('counter-total');
-  if (todayEl) todayEl.textContent = '1';
-  if (totalEl) totalEl.textContent = '1';
+  if (todayEl) todayEl.textContent = visits.todayCount;
+  if (totalEl) totalEl.textContent = visits.total;
 
-  // Guestbook preview
   renderGuestbookPreview();
 
-  // BGM title
   const room = DotoriStorage.getRoom();
   const bgmTitle = document.getElementById('bgm-title');
-  if (bgmTitle) {
-    bgmTitle.textContent = room.bgm_choice || '— 곡을 선택해주세요 —';
+  if (bgmTitle) bgmTitle.textContent = room.bgm_choice || '— 곡을 선택해주세요 —';
+
+  renderTastePreview(profile);
+}
+
+function renderTastePreview(profile) {
+  const el = document.getElementById('taste-preview');
+  if (!el) return;
+
+  const t = profile.tastes || {};
+  const hasAny = (t.interests && t.interests.length) +
+                 (t.music && t.music.length) +
+                 (t.mood && t.mood.length) +
+                 (t.favorites ? 1 : 0) +
+                 (t.needs ? 1 : 0);
+
+  if (!hasAny) {
+    el.innerHTML = `<p class="taste-preview-text">아직 취향을 입력하지 않았어요.<br>당신을 소개해주세요.</p>`;
+    return;
   }
+
+  const parts = [];
+  if (t.interests && t.interests.length) parts.push(t.interests.slice(0, 3).join(' · '));
+  if (t.music && t.music.length) parts.push(t.music.slice(0, 2).join(' · '));
+  if (t.mood && t.mood.length) parts.push(t.mood.slice(0, 2).join(' · '));
+
+  el.innerHTML = `
+    <p class="taste-preview-text">${parts.join('<br>')}</p>
+    ${t.needs ? `<p class="taste-needs">"${escapeHtml(t.needs)}"</p>` : ''}
+  `;
 }
 
 function renderGuestbookPreview() {
@@ -101,11 +133,12 @@ function renderGuestbookPreview() {
   preview.innerHTML = '';
   entries.slice(0, 3).forEach((entry) => {
     const div = document.createElement('div');
-    div.style.cssText = 'padding:6px 0; border-bottom:1px solid #F0F0F0; font-size:11px;';
+    div.className = 'guestbook-entry-mini';
     div.innerHTML = `
-      <strong style="color:#8B5E2E;">${entry.author_name || '익명'}</strong>
-      <span style="color:#CCC; font-size:10px; margin-left:4px;">${formatTime(entry.created_at)}</span>
-      <div style="margin-top:2px; color:#555;">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
+      <strong>${entry.author_name || '익명'}</strong>
+      <span class="time">${formatTime(entry.created_at)}</span>
+      <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
+      ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
     `;
     preview.appendChild(div);
   });
@@ -123,7 +156,7 @@ function initStatusEdit() {
 
     showModal('상태 메시지 수정',
       `<input type="text" id="status-input" maxlength="40" value="${escapeHtml(current)}"
-        style="width:100%; padding:8px; border:1px solid #CCC; border-radius:3px; font-size:12px; background:#FFF8F0;">`,
+        class="editor-input">`,
       [
         { label: '취소', onClick: closeModal },
         { label: '저장', primary: true, onClick: () => {
@@ -131,12 +164,11 @@ function initStatusEdit() {
           const value = input.value.trim() || '오늘도 화이팅 ♡';
           DotoriStorage.updateProfile({ status_message: value });
           closeModal();
-          renderHome(DotoriStorage.getProfile());
+          renderHome();
         }}
       ]
     );
 
-    // Focus input after modal opens
     setTimeout(() => {
       const input = document.getElementById('status-input');
       if (input) input.focus();
@@ -144,36 +176,26 @@ function initStatusEdit() {
   });
 }
 
-// ---------- BGM (placeholder for now) ----------
+// ---------- Header buttons ----------
 
-function initBGM() {
-  const playBtn = document.getElementById('bgm-play-btn');
-  const selectBtn = document.getElementById('bgm-select-btn');
+function initHeaderButtons() {
+  const profileEditBtn = document.getElementById('profile-edit-btn');
+  if (profileEditBtn) profileEditBtn.addEventListener('click', openProfileEditor);
 
-  if (playBtn) {
-    playBtn.addEventListener('click', () => {
-      showModal('BGM', '아직 BGM이 준비되지 않았어요.<br><span style="color:#888; font-size:11px;">Weekend 3에서 추가됩니다.</span>', [
-        { label: '확인', primary: true, onClick: closeModal }
-      ]);
-    });
-  }
+  const tasteEditBtn = document.getElementById('taste-edit-btn');
+  if (tasteEditBtn) tasteEditBtn.addEventListener('click', openTasteEditor);
 
-  if (selectBtn) {
-    selectBtn.addEventListener('click', () => {
-      showModal('BGM 설정', 'BGM 목록은 Weekend 3에서 추가됩니다.', [
-        { label: '확인', primary: true, onClick: closeModal }
-      ]);
-    });
-  }
-}
+  const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
+  if (guestbookWriteBtn) guestbookWriteBtn.addEventListener('click', openGuestbookWriter);
 
-// ---------- Inbox (placeholder) ----------
+  const settingsLink = document.getElementById('settings-link');
+  if (settingsLink) settingsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    openSettings();
+  });
 
-function initInbox() {
   const inboxLink = document.getElementById('inbox-link');
-  if (!inboxLink) return;
-
-  inboxLink.addEventListener('click', (e) => {
+  if (inboxLink) inboxLink.addEventListener('click', (e) => {
     e.preventDefault();
     showModal('쪽지함', '쪽지 기능은 Weekend 9에서 추가됩니다.', [
       { label: '확인', primary: true, onClick: closeModal }
@@ -181,40 +203,26 @@ function initInbox() {
   });
 }
 
-// ---------- Settings (placeholder) ----------
+// ---------- BGM ----------
 
-function initSettings() {
-  const settingsLink = document.getElementById('settings-link');
-  if (!settingsLink) return;
+function initBGM() {
+  const playBtn = document.getElementById('bgm-play-btn');
+  const selectBtn = document.getElementById('bgm-select-btn');
 
-  settingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    const profile = DotoriStorage.getProfile();
+  if (playBtn) playBtn.addEventListener('click', () => {
+    showModal('BGM', 'BGM 기능은 Weekend 3 후반에 추가됩니다.', [
+      { label: '확인', primary: true, onClick: closeModal }
+    ]);
+  });
 
-    showModal('설정',
-      `<div style="font-size:12px; line-height:1.8;">
-        <strong>닉네임:</strong> ${escapeHtml(profile.nickname)}<br>
-        <strong>도토리 ID:</strong> <code style="background:#FFF8F0; padding:2px 6px; border-radius:2px;">${profile.dotori_id}</code><br>
-        <span style="color:#888; font-size:11px;">이 ID를 저장해두면 다른 기기에서 불러올 수 있어요.</span>
-      </div>`,
-      [
-        { label: '도토리 내보내기', onClick: () => {
-          const data = DotoriStorage.exportAcorn();
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = profile.dotori_id + '.dotori';
-          a.click();
-          URL.revokeObjectURL(url);
-        }},
-        { label: '확인', primary: true, onClick: closeModal }
-      ]
-    );
+  if (selectBtn) selectBtn.addEventListener('click', () => {
+    showModal('BGM 설정', 'BGM 목록은 Weekend 3 후반에 추가됩니다.', [
+      { label: '확인', primary: true, onClick: closeModal }
+    ]);
   });
 }
 
-// ---------- Time Capsule (placeholder) ----------
+// ---------- Time Capsule ----------
 
 function initTimeCapsule() {
   const link = document.getElementById('time-capsule-link');
@@ -248,22 +256,23 @@ function formatTime(iso) {
   return hh + ':' + mm;
 }
 
-// ---------- Main init ----------
+// ---------- Init ----------
 
 function initApp(profile) {
   initTabs();
   renderHome(profile);
   initStatusEdit();
   initBGM();
-  initInbox();
-  initSettings();
+  initHeaderButtons();
   initTimeCapsule();
 }
-
-// ---------- Boot ----------
 
 window.addEventListener('DOMContentLoaded', () => {
   initAuth();
 });
 
 window.initApp = initApp;
+window.showModal = showModal;
+window.closeModal = closeModal;
+window.renderHome = renderHome;
+window.escapeHtml = escapeHtml;

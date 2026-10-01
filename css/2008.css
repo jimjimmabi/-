@@ -599,3 +599,276 @@ body {
   border-top: 1px solid #EEEEEE;
   text-align: right;
 }
+/* ============================================
+   WEEKEND 2/3 ADDITIONS
+   ============================================ */
+
+.mini-me-emoji {
+  font-size: 56px;
+  line-height: 1;
+}
+
+/* ---------- Editor form ---------- */
+
+.editor-form label {
+  display: block;
+  font-size: 11px;
+  color: var(--acorn-dark);
+  font-weight: bold;
+  margin-bottom: 6px;
+  margin-top: 12px;
+}
+
+.editor-form label:first-child {
+  margin-top: 0;
+}
+
+.editor-form .hint {
+  font-weight: normal;
+  color: #AAAAAA;
+  font-size: 10px;
+}
+
+.editor-input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--cream);
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+}
+
+.editor-input:focus {
+  border-color: var(--pink);
+  background: #FFFFFF;
+}
+
+textarea.editor-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* ---------- Mini-Me options ---------- */
+
+.mini-me-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mini-me-option {
+  width: 38px;
+  height: 38px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: var(--cream);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.mini-me-option:hover {
+  background: #FFF0F8;
+}
+
+.mini-me-option.active {
+  border-color: var(--pink);
+  background: #FFE8F0;
+}
+
+/* ---------- Background options ---------- */
+
+.bg-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bg-option {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #DDDDDD;
+  border-radius: 50%;
+  transition: all 0.1s;
+}
+
+.bg-option:hover {
+  transform: scale(1.1);
+}
+
+.bg-option.active {
+  border-color: var(--pink-dark);
+  box-shadow: 0 0 0 2px #FFE8F0;
+}
+
+/* ---------- Chips ---------- */
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  padding: 4px 10px;
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text);
+  transition: all 0.1s;
+}
+
+.chip:hover {
+  background: #FFF0F8;
+}
+
+.chip.active {
+  background: var(--pink);
+  border-color: var(--pink-dark);
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+/* ---------- Checkbox label ---------- */
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  font-weight: normal !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+
+/* ---------- Settings ---------- */
+
+.settings-form {
+  font-size: 12px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.settings-label {
+  color: var(--text-light);
+  font-size: 11px;
+}
+
+.settings-value {
+  color: var(--text);
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-value code {
+  background: var(--cream);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--acorn-dark);
+}
+
+.copy-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: linear-gradient(to bottom, #FFFFFF, #F0F0F0);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+}
+
+.copy-btn:hover {
+  background: linear-gradient(to bottom, #FFF8F0, #FFEEDD);
+  color: var(--pink-dark);
+}
+
+.settings-hint {
+  font-size: 10px;
+  color: #AAAAAA;
+  margin: 10px 0 14px;
+  line-height: 1.5;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #F0F0F0;
+}
+
+/* ---------- Guestbook preview ---------- */
+
+.guestbook-entry-mini {
+  padding: 8px 0;
+  border-bottom: 1px solid #F5F5F5;
+  font-size: 11px;
+}
+
+.guestbook-entry-mini:last-child {
+  border-bottom: none;
+}
+
+.guestbook-entry-mini strong {
+  color: var(--acorn-dark);
+}
+
+.guestbook-entry-mini .time {
+  color: #CCCCCC;
+  font-size: 10px;
+  margin-left: 6px;
+}
+
+.guestbook-entry-mini .msg {
+  margin-top: 3px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.guestbook-entry-mini .reply {
+  margin-top: 4px;
+  padding-left: 10px;
+  color: var(--pink-dark);
+  font-size: 10px;
+}
+
+/* ---------- Taste preview ---------- */
+
+.taste-preview-text {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.7;
+}
+
+.taste-needs {
+  font-size: 11px;
+  color: var(--pink-dark);
+  font-style: italic;
+  margin-top: 6px;
+}
+
+/* ---------- Primary button ---------- */
+
+.small-btn.primary {
+  background: linear-gradient(to bottom, #FFB8D4, var(--pink));
+  border-color: var(--pink-dark);
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+.small-btn.primary:hover {
+  background: linear-gradient(to bottom, var(--pink), var(--pink-dark));
+  color: #FFFFFF;
+}
