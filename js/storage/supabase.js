@@ -350,10 +350,298 @@ async function getAllProfiles() {
     .from('profiles')
     .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, created_at')
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(100);
 
   if (error) return [];
   return data;
+}
+
+// ---------- Match Score ----------
+
+function calculateMatch(myTastes, theirTastes) {
+  if (!myTastes || !theirTastes) return 0;
+
+  let score = 0;
+  let reasons = [];
+
+  // Interests — 3+ overlap = +30
+  const myInterests = myTastes.interests || [];
+  const theirInterests = theirTastes.interests || [];
+  const sharedInterests = myInterests.filter((i) => theirInterests.includes(i));
+  if (sharedInterests.length >= 3) {
+    score += 30;
+    reasons.push(`관심사 ${sharedInterests.length}개 겹침`);
+  } else if (sharedInterests.length > 0) {
+    score += sharedInterests.length * 10;
+    reasons.push(`관심사 ${sharedInterests.length}개 겹침`);
+  }
+
+  // Music — any overlap = +25
+  const myMusic = myTastes.music || [];
+  const theirMusic = theirTastes.music || [];
+  const sharedMusic = myMusic.filter((m) => theirMusic.includes(m));
+  if (sharedMusic.length > 0) {
+    score += 25;
+    reasons.push(`음악 취향 겹침`);
+  }
+
+  // Mood — any overlap = +20
+  const myMood = myTastes.mood || [];
+  const theirMood = theirTastes.mood || [];
+  const sharedMood = myMood.filter((m) => theirMood.includes(m));
+  if (sharedMood.length > 0) {
+    score += 20;
+    reasons.push(`감성 겹침`);
+  }
+
+  // Favorites — keyword overlap = +15
+  const myFav = (myTastes.favorites || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const theirFav = (theirTastes.favorites || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const sharedFav = myFav.filter((f) => theirFav.some((tf) => tf.includes(f) || f.includes(tf)));
+  if (sharedFav.length > 0) {
+    score += 15;
+    reasons.push(`"${sharedFav.slice(0, 3).join(', ')}" 겹침`);
+  }
+
+  // Needs ↔ Currently = +10
+  const myNeeds = (myTastes.needs || '').toLowerCase();
+  const theirCurrently = (theirTastes.currently || '').toLowerCase();
+  if (myNeeds && theirCurrently) {
+    const keywords = myNeeds.split(/\s+/).filter((w) => w.length >= 2);
+    if (keywords.some((k) => theirCurrently.includes(k))) {
+      score += 10;
+      reasons.push('지금 필요한 것이 맞아요');
+    }
+  }
+
+  return {
+    score: Math.min(score, 100),
+    reasons: reasons
+  };
+}
+
+// ---------- Notes (쪽지) ----------
+
+async function sendNote(recipientDotoriId, message) {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('로그인이 필요해요');
+
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const recipient = await getProfileByDotoriId(recipientDotoriId);
+  if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
+
+  if (recipient.id === me.id) throw new Error('자신에게는 쪽지를 보낼 수 없어요');
+
+  const { data, error } = await sb
+    .from('notes')
+    .insert([{
+      sender_id: me.id,
+      recipient_id: recipient.id,
+      message: message
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getInbox() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data, error } = await sb
+    .from('notes')
+    .select('*')
+    .eq('recipient_id', me.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+
+  // Fetch sender profiles
+  const senderIds = [...new Set(data.map((n) => n.sender_id))];
+  const { data: senders } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me')
+    .in('id', senderIds);
+
+  const senderMap = {};
+  (senders || []).forEach((s) => { senderMap[s.id] = s; });
+
+  return data.map((n) => ({
+    ...n,
+    sender: senderMap[n.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+  }));
+}
+
+async function getSentNotes() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data, error } = await sb
+    .from('notes')
+    .select('*')
+    .eq('sender_id', me.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+
+  const recipientIds = [...new Set(data.map((n) => n.recipient_id))];
+  const { data: recipients } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me')
+    .in('id', recipientIds);
+
+  const recipientMap = {};
+  (recipients || []).forEach((r) => { recipientMap[r.id] = r; });
+
+  return data.map((n) => ({
+    ...n,
+    recipient: recipientMap[n.recipient_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+  }));
+}
+
+async function getUnreadCount() {
+  const me = await getProfile();
+  if (!me) return 0;
+
+  const { count, error } = await sb
+    .from('notes')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', me.id)
+    .eq('is_read', false);
+
+  if (error) return 0;
+  return count || 0;
+}
+
+async function markNoteRead(noteId) {
+  const { error } = await sb
+    .from('notes')
+    .update({ is_read: true })
+    .eq('id', noteId);
+
+  return !error;
+}
+
+// ---------- Friend Requests (일촌 신청) ----------
+
+async function sendFriendRequest(recipientDotoriId) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const recipient = await getProfileByDotoriId(recipientDotoriId);
+  if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
+
+  if (recipient.id === me.id) throw new Error('자신에게는 신청할 수 없어요');
+
+  const { data, error } = await sb
+    .from('friend_requests')
+    .insert([{
+      sender_id: me.id,
+      recipient_id: recipient.id,
+      status: 'pending'
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') throw new Error('이미 신청했어요');
+    throw error;
+  }
+  return data;
+}
+
+async function getPendingRequests() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data, error } = await sb
+    .from('friend_requests')
+    .select('*')
+    .eq('recipient_id', me.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+
+  const senderIds = [...new Set(data.map((r) => r.sender_id))];
+  const { data: senders } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me')
+    .in('id', senderIds);
+
+  const senderMap = {};
+  (senders || []).forEach((s) => { senderMap[s.id] = s; });
+
+  return data.map((r) => ({
+    ...r,
+    sender: senderMap[r.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+  }));
+}
+
+async function acceptFriendRequest(requestId) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const { data: request, error: reqErr } = await sb
+    .from('friend_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+
+  if (reqErr || !request) throw new Error('신청을 찾을 수 없어요');
+
+  // Update request status
+  await sb
+    .from('friend_requests')
+    .update({ status: 'accepted' })
+    .eq('id', requestId);
+
+  // Create ilchon row (order the two IDs so we don't duplicate)
+  const [a, b] = [me.id, request.sender_id].sort();
+
+  const { error: ilErr } = await sb
+    .from('ilchon')
+    .insert([{ user_a: a, user_b: b }]);
+
+  if (ilErr && ilErr.code !== '23505') throw ilErr;
+
+  return true;
+}
+
+async function declineFriendRequest(requestId) {
+  const { error } = await sb
+    .from('friend_requests')
+    .update({ status: 'declined' })
+    .eq('id', requestId);
+
+  return !error;
+}
+
+async function getIlchon() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data, error } = await sb
+    .from('ilchon')
+    .select('*')
+    .or(`user_a.eq.${me.id},user_b.eq.${me.id}`);
+
+  if (error) return [];
+
+  const friendIds = data.map((row) => row.user_a === me.id ? row.user_b : row.user_a);
+
+  const { data: friends } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me, status_message')
+    .in('id', friendIds);
+
+  return (friends || []).map((f) => ({ ...f, ilchon_at: data.find((row) =>
+    row.user_a === f.id || row.user_b === f.id
+  )?.created_at }));
 }
 
 // ---------- Expose ----------
@@ -378,5 +666,16 @@ window.DotoriSupabase = {
   replyToGuestbookEntry,
   bumpVisit,
   getVisits,
-  getAllProfiles
+  getAllProfiles,
+  calculateMatch,
+  sendNote,
+  getInbox,
+  getSentNotes,
+  getUnreadCount,
+  markNoteRead,
+  sendFriendRequest,
+  getPendingRequests,
+  acceptFriendRequest,
+  declineFriendRequest,
+  getIlchon
 };
