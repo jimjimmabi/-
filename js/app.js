@@ -1,5 +1,5 @@
 // ============================================
-// 도토리숲 — Main App
+// 도토리숲 — Main App (Supabase-ready)
 // ============================================
 
 // ---------- Modal ----------
@@ -49,6 +49,8 @@ function initTabs() {
       tab.classList.add('active');
       const targetEl = document.getElementById('tab-' + target);
       if (targetEl) targetEl.classList.add('active');
+
+      if (target === 'guestbook') renderGuestbookTab();
     });
   });
 }
@@ -140,7 +142,7 @@ async function renderGuestbookPreview() {
     const div = document.createElement('div');
     div.className = 'guestbook-entry-mini';
     div.innerHTML = `
-      <strong>${entry.author_name || '익명'}</strong>
+      <strong>${escapeHtml(entry.author_name || '익명')}</strong>
       <span class="time">${formatTime(entry.created_at)}</span>
       <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
       ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
@@ -149,14 +151,54 @@ async function renderGuestbookPreview() {
   });
 }
 
+async function renderGuestbookTab() {
+  const container = document.querySelector('#tab-guestbook .placeholder-panel');
+  if (!container) return;
+
+  let entries = [];
+  try {
+    entries = await DotoriStorage.getGuestbook();
+  } catch (e) {
+    console.warn('Guestbook tab load failed:', e);
+  }
+
+  container.innerHTML = `
+    <h2>방명록</h2>
+    <button id="guestbook-write-btn-full" class="small-btn" style="margin:10px 0;">방명록 남기기</button>
+    <div id="guestbook-full-list" style="text-align:left;"></div>
+  `;
+
+  const list = document.getElementById('guestbook-full-list');
+  if (!Array.isArray(entries) || entries.length === 0) {
+    list.innerHTML = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
+  } else {
+    entries.forEach((entry) => {
+      const div = document.createElement('div');
+      div.className = 'guestbook-entry-mini';
+      div.style.padding = '10px 0';
+      div.style.borderBottom = '1px solid #EEE';
+      div.innerHTML = `
+        <strong>${escapeHtml(entry.author_name || '익명')}</strong>
+        <span class="time">${formatDate(entry.created_at)}</span>
+        <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
+        ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  const writeBtn = document.getElementById('guestbook-write-btn-full');
+  if (writeBtn) writeBtn.addEventListener('click', openGuestbookWriter);
+}
+
 // ---------- Status editing ----------
 
 function initStatusEdit() {
   const editBtn = document.getElementById('status-edit-btn');
   if (!editBtn) return;
 
-  editBtn.addEventListener('click', () => {
-    const profile = DotoriStorage.getProfile();
+  editBtn.addEventListener('click', async () => {
+    const profile = await DotoriStorage.getProfile();
     const current = profile.status_message || '';
 
     showModal('상태 메시지 수정',
@@ -164,12 +206,13 @@ function initStatusEdit() {
         class="editor-input">`,
       [
         { label: '취소', onClick: closeModal },
-        { label: '저장', primary: true, onClick: () => {
+        { label: '저장', primary: true, onClick: async () => {
           const input = document.getElementById('status-input');
           const value = input.value.trim() || '오늘도 화이팅 ♡';
-          DotoriStorage.updateProfile({ status_message: value });
+          await DotoriStorage.updateProfile({ status_message: value });
           closeModal();
-          renderHome();
+          const updated = await DotoriStorage.getProfile();
+          await renderHome(updated);
         }}
       ]
     );
@@ -255,10 +298,20 @@ function escapeHtml(str) {
 }
 
 function formatTime(iso) {
+  if (!iso) return '';
   const d = new Date(iso);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return hh + ':' + mm;
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd}`;
 }
 
 // ---------- Init ----------
