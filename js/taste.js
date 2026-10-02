@@ -5,7 +5,7 @@
 let tasteAllProfiles = [];
 let tasteMyProfile = null;
 let tasteSearchTerm = '';
-let tasteActiveFilter = 'all';  // all | interests | music | mood
+let tasteActiveFilter = 'all';
 
 async function initTasteTab() {
   const container = document.getElementById('tab-taste');
@@ -40,14 +40,15 @@ async function initTasteTab() {
     </div>
   `;
 
-  // Wire up search
   const searchInput = document.getElementById('taste-search-input');
-  searchInput.addEventListener('input', (e) => {
-    tasteSearchTerm = e.target.value.trim().toLowerCase();
-    renderTasteList();
-  });
+  if (searchInput) {
+    searchInput.value = tasteSearchTerm;
+    searchInput.addEventListener('input', (e) => {
+      tasteSearchTerm = e.target.value.trim().toLowerCase();
+      renderTasteList();
+    });
+  }
 
-  // Wire up filters
   container.querySelectorAll('.filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       container.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
@@ -57,7 +58,6 @@ async function initTasteTab() {
     });
   });
 
-  // Load data
   await loadTasteData();
 }
 
@@ -66,12 +66,10 @@ async function loadTasteData() {
     tasteMyProfile = await DotoriStorage.getMyAcorn();
     const all = await DotoriStorage.getAllProfiles();
 
-    // Filter out myself
     tasteAllProfiles = (all || []).filter((p) => {
       return !tasteMyProfile || p.dotori_id !== tasteMyProfile.dotori_id;
     });
 
-    // Calculate match scores
     const myTastes = (tasteMyProfile && tasteMyProfile.tastes) || {};
     tasteAllProfiles = tasteAllProfiles.map((p) => {
       const result = DotoriStorage.calculateMatch(myTastes, p.tastes || {});
@@ -82,7 +80,6 @@ async function loadTasteData() {
       };
     });
 
-    // Sort by match score, but don't call it "ranking"
     tasteAllProfiles.sort((a, b) => b.matchScore - a.matchScore);
 
     renderTasteList();
@@ -99,7 +96,6 @@ function renderTasteList() {
 
   let filtered = tasteAllProfiles;
 
-  // Search filter
   if (tasteSearchTerm) {
     filtered = filtered.filter((p) => {
       const nickname = (p.nickname || '').toLowerCase();
@@ -121,7 +117,6 @@ function renderTasteList() {
     });
   }
 
-  // Category filter (only show users who have that category filled)
   if (tasteActiveFilter !== 'all') {
     filtered = filtered.filter((p) => {
       const t = p.tastes || {};
@@ -190,15 +185,21 @@ function renderTasteCard(profile) {
     </div>
   `;
 
-  // Wire buttons
   const visitBtn = card.querySelector('.visit-btn');
   visitBtn.addEventListener('click', async () => {
     const target = await DotoriStorage.getProfileByDotoriId(profile.dotori_id);
     if (target) {
-      // Hide welcome, show main site, enter visit mode
+      // Switch tabs back to home first
+      const homeTab = document.querySelector('.site-tabs .tab[data-tab="home"]');
+      if (homeTab) homeTab.click();
+
+      // Enter visit mode
       document.getElementById('welcome-screen').classList.add('hidden');
       document.getElementById('main-site').classList.remove('hidden');
       window.initVisitMode(target);
+
+      // Scroll to top so the banner is visible
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   });
 
@@ -213,7 +214,7 @@ function renderTasteCard(profile) {
 // ---------- Note Writer ----------
 
 async function openNoteWriter(recipientDotoriId, recipientNickname) {
-  showModal(`쪽지 보내기`,
+  showModal('쪽지 보내기',
     `<div class="editor-form">
       <p class="note-to">To. <strong>${escapeHtml(recipientNickname)}</strong></p>
       <label>메시지 <span class="hint">최대 300자</span></label>
