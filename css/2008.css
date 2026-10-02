@@ -872,3 +872,30 @@ textarea.editor-input {
   background: linear-gradient(to bottom, var(--pink), var(--pink-dark));
   color: #FFFFFF;
 }
+
+/* ============================================
+   VISIT MODE ADDITIONS
+   ============================================ */
+
+.welcome-sep {
+  color: #CCCCCC;
+  margin: 0 4px;
+}
+
+.visit-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px;
+  background: linear-gradient(to bottom, #FFF0F8, #FFE0EE);
+  border-bottom: 1px solid #FFC8DD;
+  font-size: 11px;
+  color: var(--pink-dark);
+  font-weight: bold;
+}
+
+.visit-banner .small-btn {
+  font-size: 10px;
+  padding: 3px 8px;
+  font-weight: normal;
+}
