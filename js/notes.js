@@ -87,7 +87,6 @@ async function renderConversationList() {
 
   content.innerHTML = '';
   list.forEach((conv) => {
-    // Sort notes in this conversation chronologically
     conv.notes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     const lastNote = conv.notes[conv.notes.length - 1];
     const preview = (lastNote.message || '').slice(0, 40);
@@ -159,7 +158,7 @@ async function openConversation(conv) {
     ]
   );
 
-  // Scroll to bottom of thread
+  // Scroll to bottom
   setTimeout(() => {
     const thread = document.getElementById('chat-thread');
     if (thread) thread.scrollTop = thread.scrollHeight;
@@ -175,7 +174,7 @@ async function openConversation(conv) {
       const target = await DotoriStorage.getProfileByDotoriId(visitBtn.dataset.dotori);
       if (target) {
         closeModal();
-        openVisitModal(target);
+        window.openVisitModal(target);
       }
     });
   }
@@ -191,20 +190,20 @@ async function openConversation(conv) {
     try {
       await DotoriStorage.sendNote(conv.dotori_id, msg);
 
-      // Append to thread immediately
       const thread = document.getElementById('chat-thread');
+      const now = new Date().toISOString();
       const row = document.createElement('div');
       row.className = 'chat-bubble-row mine';
       row.innerHTML = `
         <div class="chat-bubble mine">${escapeHtml(msg)}</div>
-        <div class="chat-time">${formatDate(new Date().toISOString())} ${formatTime(new Date().toISOString())}</div>
+        <div class="chat-time">${formatDate(now)} ${formatTime(now)}</div>
       `;
       thread.appendChild(row);
       thread.scrollTop = thread.scrollHeight;
       input.value = '';
       input.focus();
 
-      // Update unread badge (shouldn't change, but just in case)
+      // Refresh unread count in header
       const count = await DotoriStorage.getUnreadCount();
       const inboxCount = document.getElementById('inbox-count');
       if (inboxCount) inboxCount.textContent = count;
