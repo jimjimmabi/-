@@ -13,22 +13,18 @@ const sb = window.supabase.createClient(
 // ---------- Auth ----------
 
 async function createAcorn(nickname) {
-  // 1. Check if we already have a Supabase session (already signed in)
   const { data: { session: existingSession } } = await sb.auth.getSession();
 
   let userId;
 
   if (existingSession && existingSession.user) {
-    // Already signed in — reuse this user
     userId = existingSession.user.id;
   } else {
-    // First time — create anonymous user
     const { data: authData, error: authError } = await sb.auth.signInAnonymously();
     if (authError) throw authError;
     userId = authData.user.id;
   }
 
-  // 2. Check if a profile already exists for this user
   const { data: existingProfile } = await sb
     .from('profiles')
     .select('*')
@@ -36,7 +32,6 @@ async function createAcorn(nickname) {
     .single();
 
   if (existingProfile) {
-    // Profile exists — just update the nickname
     const { data: updated, error: updateError } = await sb
       .from('profiles')
       .update({ nickname: nickname })
@@ -49,13 +44,14 @@ async function createAcorn(nickname) {
     localStorage.setItem('dotori_session', JSON.stringify({
       loggedIn: true,
       dotori_id: updated.dotori_id,
-      user_id: updated.id
+      user_id: updated.id,
+      is_owner: true
     }));
+    localStorage.setItem('dotori_last_id', updated.dotori_id);
 
     return updated;
   }
 
-  // 3. No profile — create a new one
   const dotoriId = 'dotori-' + Math.random().toString(36).substring(2, 6);
 
   const { data: profile, error: profileError } = await sb
@@ -68,12 +64,8 @@ async function createAcorn(nickname) {
       mini_me: '🌰',
       mini_me_bg: '#EAF6FF',
       tastes: {
-        interests: [],
-        music: [],
-        mood: [],
-        favorites: '',
-        currently: '',
-        needs: ''
+        interests: [], music: [], mood: [],
+        favorites: '', currently: '', needs: ''
       }
     }])
     .select()
@@ -81,14 +73,15 @@ async function createAcorn(nickname) {
 
   if (profileError) throw profileError;
 
-  // 4. Create empty room (only for new profiles)
   await sb.from('rooms').insert([{ user_id: userId }]);
 
   localStorage.setItem('dotori_session', JSON.stringify({
     loggedIn: true,
     dotori_id: dotoriId,
-    user_id: userId
+    user_id: userId,
+    is_owner: true
   }));
+  localStorage.setItem('dotori_last_id', dotoriId);
 
   return profile;
 }
@@ -108,10 +101,34 @@ async function loadAcorn() {
   localStorage.setItem('dotori_session', JSON.stringify({
     loggedIn: true,
     dotori_id: data.dotori_id,
-    user_id: data.id
+    user_id: data.id,
+    is_owner: true
   }));
+  localStorage.setItem('dotori_last_id', data.dotori_id);
 
   return data;
+}
+
+async function loginByDotoriId(dotoriId) {
+  // Read-only lookup by DOTORI-ID. Returns the profile, but does NOT
+  // give the visitor write access. Used by the "visit a friend" flow.
+  const { data: profile, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('dotori_id', dotoriId)
+    .single();
+
+  if (error || !profile) return null;
+
+  // Ensure we have *some* auth session so RLS read policies work
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    await sb.auth.signInAnonymously();
+  }
+
+  localStorage.setItem('dotori_last_id', dotoriId);
+
+  return profile;
 }
 
 function getSession() {
@@ -126,6 +143,7 @@ function getSession() {
 async function logout() {
   await sb.auth.signOut();
   localStorage.removeItem('dotori_session');
+  // NOTE: we keep 'dotori_last_id' so the user can log back in
 }
 
 // ---------- Profile ----------
@@ -175,12 +193,8 @@ async function updateProfile(updates) {
 async function getTastes() {
   const profile = await getProfile();
   return (profile && profile.tastes) || {
-    interests: [],
-    music: [],
-    mood: [],
-    favorites: '',
-    currently: '',
-    needs: ''
+    interests: [], music: [], mood: [],
+    favorites: '', currently: '', needs: ''
   };
 }
 
@@ -339,6 +353,7 @@ async function getAllProfiles() {
 window.DotoriSupabase = {
   createAcorn,
   loadAcorn,
+  loginByDotoriId,
   getSession,
   logout,
   getProfile,
