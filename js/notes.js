@@ -1,6 +1,9 @@
 // ============================================
-// 도토리숲 — 쪽지 (Notes / Conversations)
+// 도토리숲 — 쪽지 (Notes / Live Conversations)
 // ============================================
+
+let activeChatChannel = null;
+let activeChatDotoriId = null;
 
 // ---------- Inbox: list of conversations ----------
 
@@ -33,7 +36,6 @@ async function renderConversationList() {
     return;
   }
 
-  // Group all notes by "the other person" (dotori_id)
   const conversations = {};
 
   (inbox || []).forEach((note) => {
@@ -116,33 +118,36 @@ async function renderConversationList() {
   });
 }
 
-// ---------- One conversation ----------
+// ---------- One conversation (LIVE) ----------
 
 async function openConversation(conv) {
-  // Mark all received notes in this conversation as read
+  // Mark received notes as read
   const unreadNotes = conv.notes.filter((n) => n.direction === 'received' && !n.is_read);
   for (const note of unreadNotes) {
     try { await DotoriStorage.markNoteRead(note.id); } catch (e) {}
   }
 
-  const threadHtml = conv.notes.map((note) => {
-    const mine = note.direction === 'sent';
-    return `
-      <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}">
-        <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
-          ${escapeHtml(note.message)}
-        </div>
-        <div class="chat-time">${formatDate(note.created_at)} ${formatTime(note.created_at)}</div>
-      </div>
-    `;
-  }).join('');
+  // Track active chat
+  activeChatDotoriId = conv.dotori_id;
+
+  renderConversationModal(conv);
+
+  // Subscribe to realtime for new messages
+  setupLiveChat(conv);
+}
+
+function renderConversationModal(conv) {
+  const threadHtml = conv.notes.map((note) => renderChatBubble(note)).join('');
+
+  const hasVisitBtn = conv.dotori_id && conv.dotori_id !== getMyDotoriId();
 
   showModal(`💌 ${conv.nickname}`,
     `<div class="chat-window">
       <div class="chat-header">
         <div class="chat-header-avatar">${conv.mini_me}</div>
         <div class="chat-header-name">${escapeHtml(conv.nickname)}</div>
-        ${conv.dotori_id ? `<button class="small-btn" id="chat-visit-btn" data-dotori="${conv.dotori_id}">방문하기</button>` : ''}
+        <span class="chat-live-dot" title="실시간 연결됨"></span>
+        ${hasVisitBtn ? `<button class="small-btn" id="chat-visit-btn" data-dotori="${conv.dotori_id}">방문하기</button>` : ''}
       </div>
       <div class="chat-thread" id="chat-thread">
         ${threadHtml}
@@ -154,7 +159,7 @@ async function openConversation(conv) {
       </div>
     </div>`,
     [
-      { label: '닫기', onClick: closeModal }
+      { label: '닫기', onClick: closeActiveChat }
     ]
   );
 
@@ -173,13 +178,13 @@ async function openConversation(conv) {
     visitBtn.addEventListener('click', async () => {
       const target = await DotoriStorage.getProfileByDotoriId(visitBtn.dataset.dotori);
       if (target) {
-        closeModal();
+        closeActiveChat();
         window.openVisitModal(target);
       }
     });
   }
 
-  // Wire send button
+  // Wire send
   const sendBtn = document.getElementById('chat-send-btn');
   const input = document.getElementById('chat-input');
 
@@ -187,29 +192,21 @@ async function openConversation(conv) {
     const msg = input.value.trim();
     if (!msg) return;
 
+    input.value = '';
+
     try {
       await DotoriStorage.sendNote(conv.dotori_id, msg);
-
-      const thread = document.getElementById('chat-thread');
-      const now = new Date().toISOString();
-      const row = document.createElement('div');
-      row.className = 'chat-bubble-row mine';
-      row.innerHTML = `
-        <div class="chat-bubble mine">${escapeHtml(msg)}</div>
-        <div class="chat-time">${formatDate(now)} ${formatTime(now)}</div>
-      `;
-      thread.appendChild(row);
-      thread.scrollTop = thread.scrollHeight;
-      input.value = '';
-      input.focus();
-
-      // Refresh unread count in header
-      const count = await DotoriStorage.getUnreadCount();
-      const inboxCount = document.getElementById('inbox-count');
-      if (inboxCount) inboxCount.textContent = count;
+      // The realtime subscription will append it — no manual append needed.
+      // But for instant feedback, we append optimistically:
+      appendChatBubble({
+        message: msg,
+        created_at: new Date().toISOString(),
+        direction: 'sent'
+      }, true);
     } catch (err) {
       console.error('Send failed:', err);
       alert('쪽지를 보낼 수 없어요: ' + (err.message || ''));
+      input.value = msg; // restore on failure
     }
   };
 
@@ -221,3 +218,128 @@ async function openConversation(conv) {
     }
   });
 }
+
+function renderChatBubble(note) {
+  const mine = note.direction === 'sent';
+  return `
+    <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}">
+      <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
+        ${escapeHtml(note.message)}
+      </div>
+      <div class="chat-time">${formatDate(note.created_at)} ${formatTime(note.created_at)}</div>
+    </div>
+  `;
+}
+
+function appendChatBubble(note, isOptimistic) {
+  const thread = document.getElementById('chat-thread');
+  if (!thread) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = renderChatBubble(note);
+  const newNode = wrapper.firstElementChild;
+
+  // Avoid duplicates: check if a bubble with the same message + time exists
+  // For optimistic sends, we mark them with a data attribute that the realtime
+  // callback can find and "confirm".
+  if (isOptimistic) {
+    newNode.dataset.optimistic = 'true';
+    newNode.dataset.message = note.message;
+  }
+
+  thread.appendChild(newNode);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+// ---------- Live chat subscription ----------
+
+function setupLiveChat(conv) {
+  // Clean up any existing subscription first
+  closeLiveChat();
+
+  try {
+    activeChatChannel = DotoriStorage.subscribeToNotes(async (newNote) => {
+      // Only care about messages that belong to THIS conversation
+      if (!activeChatDotoriId) return;
+
+      const me = await DotoriStorage.getProfile();
+      if (!me) return;
+
+      const isMine = newNote.sender_id === me.id;
+      const otherIdMatches = !isMine;
+
+      // For received: newNote.sender_id should match the person we're chatting with
+      // For sent (from another tab): newNote.recipient_id matches them
+      if (isMine) {
+        // Sent from another tab/device — check recipient
+        const recipient = await DotoriStorage.getProfileByDotoriId(activeChatDotoriId);
+        if (!recipient || newNote.recipient_id !== recipient.id) return;
+
+        // Look for an optimistic bubble to confirm
+        const thread = document.getElementById('chat-thread');
+        if (thread) {
+          const optimistic = thread.querySelector(`[data-optimistic="true"][data-message="${cssEscape(newNote.message)}"]`);
+          if (optimistic) {
+            optimistic.removeAttribute('data-optimistic');
+            optimistic.removeAttribute('data-message');
+            return; // already displayed
+          }
+        }
+        appendChatBubble({ ...newNote, direction: 'sent' });
+      } else {
+        // Received — check sender
+        const sender = await DotoriStorage.getProfileByDotoriId(activeChatDotoriId);
+        if (!sender || newNote.sender_id !== sender.id) return;
+
+        appendChatBubble({ ...newNote, direction: 'received' });
+
+        // Mark as read since the chat window is open
+        try { await DotoriStorage.markNoteRead(newNote.id); } catch (e) {}
+      }
+
+      // Update inbox badge
+      try {
+        const count = await DotoriStorage.getUnreadCount();
+        const inboxCount = document.getElementById('inbox-count');
+        if (inboxCount) inboxCount.textContent = count;
+      } catch (e) {}
+    });
+  } catch (e) {
+    console.warn('Live chat subscribe failed:', e);
+  }
+}
+
+function closeLiveChat() {
+  if (activeChatChannel) {
+    try { activeChatChannel.unsubscribe(); } catch (e) {}
+    activeChatChannel = null;
+  }
+}
+
+function closeActiveChat() {
+  closeLiveChat();
+  activeChatDotoriId = null;
+  closeModal();
+}
+
+// ---------- Helpers ----------
+
+function getMyDotoriId() {
+  try {
+    const raw = localStorage.getItem('dotori_my_id');
+    return raw || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function cssEscape(str) {
+  return String(str).replace(/"/g, '\\"');
+}
+
+// ---------- Export to window (for friends.js) ----------
+
+window.openConversation = openConversation;
+window.openInbox = openInbox;
+window.renderConversationList = renderConversationList;
+window.closeLiveChat = closeLiveChat;

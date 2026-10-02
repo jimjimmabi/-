@@ -2,6 +2,8 @@
 // 도토리숲 — Main App (Supabase-ready)
 // ============================================
 
+let friendRequestChannel = null;
+
 // ---------- Modal ----------
 
 function showModal(title, bodyHtml, buttons) {
@@ -24,7 +26,12 @@ function showModal(title, bodyHtml, buttons) {
     footerEl.appendChild(el);
   });
 
-  closeBtn.onclick = closeModal;
+  closeBtn.onclick = () => {
+    // If this was the chat modal, clean up the subscription
+    if (typeof closeLiveChat === 'function') closeLiveChat();
+    closeModal();
+  };
+
   overlay.classList.remove('hidden');
 }
 
@@ -52,6 +59,7 @@ function initTabs() {
 
       if (target === 'guestbook') renderGuestbookTab();
       if (target === 'taste') initTasteTab();
+      if (target === 'album') initPhotoTab();
     });
   });
 }
@@ -110,6 +118,22 @@ async function renderHome(profile) {
     if (inboxCount) inboxCount.textContent = count;
   } catch (e) {
     console.warn('Inbox count failed:', e);
+  }
+
+  // Friend request badge
+  try {
+    const requests = await DotoriStorage.getPendingRequests();
+    const badge = document.getElementById('friends-badge');
+    if (badge) {
+      if (requests.length > 0) {
+        badge.textContent = requests.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  } catch (e) {
+    console.warn('Friend request badge failed:', e);
   }
 }
 
@@ -337,14 +361,37 @@ function formatDate(iso) {
   return `${yyyy}.${mm}.${dd}`;
 }
 
+// ---------- Realtime for friend requests ----------
+
+function initRealtimeSubscriptions() {
+  try {
+    friendRequestChannel = DotoriStorage.subscribeToFriendRequests(async () => {
+      // A friend request was created, updated, or deleted
+      // Refresh the badge on the header
+      try {
+        const requests = await DotoriStorage.getPendingRequests();
+        const badge = document.getElementById('friends-badge');
+        if (badge) {
+          if (requests.length > 0) {
+            badge.textContent = requests.length;
+            badge.classList.remove('hidden');
+          } else {
+            badge.classList.add('hidden');
+          }
+        }
+      } catch (e) {}
+    });
+  } catch (e) {
+    console.warn('Realtime subscribe failed:', e);
+  }
+}
+
 // ---------- Init (my page) ----------
 
 function initApp(profile) {
-  // Remove any leftover visit banner
   const oldBanner = document.getElementById('visit-banner');
   if (oldBanner) oldBanner.remove();
 
-  // Make sure edit buttons are visible
   ['profile-edit-btn', 'status-edit-btn', 'taste-edit-btn', 'taste-go-btn'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
@@ -356,9 +403,11 @@ function initApp(profile) {
   initBGM();
   initHeaderButtons();
   initTimeCapsule();
+  initFriendsDrawer();
+  initRealtimeSubscriptions();
 }
 
-// ---------- Visit Modal (open someone's page in a big modal) ----------
+// ---------- Visit Modal ----------
 
 async function openVisitModal(profile) {
   const t = profile.tastes || {};
@@ -387,6 +436,20 @@ async function openVisitModal(profile) {
     }
   } catch (e) {}
 
+  // Load photos
+  let photosHtml = '<p class="empty-message">아직 사진이 없어요.</p>';
+  try {
+    const photos = await DotoriStorage.getPhotosByDotoriId(profile.dotori_id);
+    if (Array.isArray(photos) && photos.length > 0) {
+      photosHtml = `<div class="visit-photo-grid">${photos.slice(0, 6).map((p) => `
+        <div class="visit-photo-item">
+          <img src="${p.image_url}" alt="" class="visit-photo-img" loading="lazy">
+          ${p.caption ? `<div class="visit-photo-caption">${escapeHtml(p.caption)}</div>` : ''}
+        </div>
+      `).join('')}</div>`;
+    }
+  } catch (e) {}
+
   showModal(`🌰 ${profile.nickname}님의 숲`,
     `<div class="visit-modal">
       <div class="visit-modal-header">
@@ -405,12 +468,18 @@ async function openVisitModal(profile) {
       </div>
 
       <div class="visit-section">
+        <div class="visit-section-title">📷 사진첩</div>
+        <div class="visit-photos">${photosHtml}</div>
+      </div>
+
+      <div class="visit-section">
         <div class="visit-section-title">📖 방명록</div>
         <div class="visit-guestbook">${guestbookHtml}</div>
       </div>
 
       <div class="visit-actions">
         <button class="small-btn primary" id="visit-note-btn">쪽지 보내기</button>
+        <button class="small-btn" id="visit-friend-btn">일촌 신청</button>
         <button class="small-btn" id="visit-gb-btn">방명록 남기기</button>
       </div>
     </div>`,
@@ -428,6 +497,23 @@ async function openVisitModal(profile) {
       });
     }
 
+    const friendBtn = document.getElementById('visit-friend-btn');
+    if (friendBtn) {
+      friendBtn.addEventListener('click', async () => {
+        try {
+          await DotoriStorage.sendFriendRequest(profile.dotori_id);
+          closeModal();
+          showModal('🌰 일촌 신청을 보냈어요',
+            `${escapeHtml(profile.nickname)}님에게 일촌 신청이 전해졌어요.<br><br>
+            <span style="color:#888; font-size:11px;">수락하면 서로의 일촌이 됩니다.</span>`,
+            [{ label: '확인', primary: true, onClick: closeModal }]
+          );
+        } catch (err) {
+          alert(err.message || '신청할 수 없어요');
+        }
+      });
+    }
+
     const gbBtn = document.getElementById('visit-gb-btn');
     if (gbBtn) {
       gbBtn.addEventListener('click', () => {
@@ -435,6 +521,18 @@ async function openVisitModal(profile) {
         openGuestbookWriter(profile.dotori_id);
       });
     }
+
+    // Photo lightbox in visit modal
+    document.querySelectorAll('.visit-photo-img').forEach((img) => {
+      img.addEventListener('click', () => {
+        showModal('📷 사진',
+          `<div class="photo-lightbox">
+            <img src="${img.src}" alt="" class="photo-lightbox-img">
+          </div>`,
+          [{ label: '닫기', primary: true, onClick: closeModal }]
+        );
+      });
+    });
   }, 50);
 }
 
@@ -451,3 +549,5 @@ window.closeModal = closeModal;
 window.renderHome = renderHome;
 window.renderGuestbookTab = renderGuestbookTab;
 window.escapeHtml = escapeHtml;
+window.initFriendsDrawer = initFriendsDrawer;
+window.openFriendsDrawer = openFriendsDrawer;

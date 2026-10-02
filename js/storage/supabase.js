@@ -10,11 +10,12 @@ const sb = window.supabase.createClient(
   window.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK
 );
 
+const MAX_ILCHON = 12;
+
 // ---------- Auth ----------
 
 async function createAcorn(nickname) {
   const { data: { session: existingSession } } = await sb.auth.getSession();
-
   let userId;
 
   if (existingSession && existingSession.user) {
@@ -34,7 +35,7 @@ async function createAcorn(nickname) {
   if (existingProfile) {
     const { data: updated, error: updateError } = await sb
       .from('profiles')
-      .update({ nickname: nickname })
+      .update({ nickname })
       .eq('id', userId)
       .select()
       .single();
@@ -59,7 +60,7 @@ async function createAcorn(nickname) {
     .insert([{
       id: userId,
       dotori_id: dotoriId,
-      nickname: nickname,
+      nickname,
       status_message: '오늘도 화이팅 ♡',
       mini_me: '🌰',
       mini_me_bg: '#EAF6FF',
@@ -119,9 +120,7 @@ async function loginByDotoriId(dotoriId) {
   if (error || !profile) return null;
 
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) {
-    await sb.auth.signInAnonymously();
-  }
+  if (!session) await sb.auth.signInAnonymously();
 
   return profile;
 }
@@ -214,9 +213,7 @@ async function updateTastes(tastes) {
 
 async function getRoom() {
   const { data: { user } } = await sb.auth.getUser();
-  if (!user) {
-    return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
-  }
+  if (!user) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
 
   const { data, error } = await sb
     .from('rooms')
@@ -224,9 +221,7 @@ async function getRoom() {
     .eq('user_id', user.id)
     .single();
 
-  if (error) {
-    return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
-  }
+  if (error) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
   return data;
 }
 
@@ -320,7 +315,7 @@ async function replyToGuestbookEntry(id, replyText) {
 async function bumpVisit() {
   const today = new Date().toISOString().slice(0, 10);
   const raw = localStorage.getItem('dotori_visits');
-  const visits = raw ? JSON.parse(raw) : { today: today, todayCount: 0, total: 0 };
+  const visits = raw ? JSON.parse(raw) : { today, todayCount: 0, total: 0 };
 
   if (visits.today !== today) {
     visits.today = today;
@@ -336,10 +331,8 @@ async function bumpVisit() {
 function getVisits() {
   const today = new Date().toISOString().slice(0, 10);
   const raw = localStorage.getItem('dotori_visits');
-  const visits = raw ? JSON.parse(raw) : { today: today, todayCount: 0, total: 0 };
-  if (visits.today !== today) {
-    return { today: today, todayCount: 0, total: visits.total };
-  }
+  const visits = raw ? JSON.parse(raw) : { today, todayCount: 0, total: 0 };
+  if (visits.today !== today) return { today, todayCount: 0, total: visits.total };
   return visits;
 }
 
@@ -359,12 +352,11 @@ async function getAllProfiles() {
 // ---------- Match Score ----------
 
 function calculateMatch(myTastes, theirTastes) {
-  if (!myTastes || !theirTastes) return 0;
+  if (!myTastes || !theirTastes) return { score: 0, reasons: [] };
 
   let score = 0;
-  let reasons = [];
+  const reasons = [];
 
-  // Interests — 3+ overlap = +30
   const myInterests = myTastes.interests || [];
   const theirInterests = theirTastes.interests || [];
   const sharedInterests = myInterests.filter((i) => theirInterests.includes(i));
@@ -376,25 +368,20 @@ function calculateMatch(myTastes, theirTastes) {
     reasons.push(`관심사 ${sharedInterests.length}개 겹침`);
   }
 
-  // Music — any overlap = +25
   const myMusic = myTastes.music || [];
   const theirMusic = theirTastes.music || [];
-  const sharedMusic = myMusic.filter((m) => theirMusic.includes(m));
-  if (sharedMusic.length > 0) {
+  if (myMusic.some((m) => theirMusic.includes(m))) {
     score += 25;
-    reasons.push(`음악 취향 겹침`);
+    reasons.push('음악 취향 겹침');
   }
 
-  // Mood — any overlap = +20
   const myMood = myTastes.mood || [];
   const theirMood = theirTastes.mood || [];
-  const sharedMood = myMood.filter((m) => theirMood.includes(m));
-  if (sharedMood.length > 0) {
+  if (myMood.some((m) => theirMood.includes(m))) {
     score += 20;
-    reasons.push(`감성 겹침`);
+    reasons.push('감성 겹침');
   }
 
-  // Favorites — keyword overlap = +15
   const myFav = (myTastes.favorites || '').split(',').map((s) => s.trim()).filter(Boolean);
   const theirFav = (theirTastes.favorites || '').split(',').map((s) => s.trim()).filter(Boolean);
   const sharedFav = myFav.filter((f) => theirFav.some((tf) => tf.includes(f) || f.includes(tf)));
@@ -403,7 +390,6 @@ function calculateMatch(myTastes, theirTastes) {
     reasons.push(`"${sharedFav.slice(0, 3).join(', ')}" 겹침`);
   }
 
-  // Needs ↔ Currently = +10
   const myNeeds = (myTastes.needs || '').toLowerCase();
   const theirCurrently = (theirTastes.currently || '').toLowerCase();
   if (myNeeds && theirCurrently) {
@@ -414,10 +400,7 @@ function calculateMatch(myTastes, theirTastes) {
     }
   }
 
-  return {
-    score: Math.min(score, 100),
-    reasons: reasons
-  };
+  return { score: Math.min(score, 100), reasons };
 }
 
 // ---------- Notes (쪽지) ----------
@@ -431,7 +414,6 @@ async function sendNote(recipientDotoriId, message) {
 
   const recipient = await getProfileByDotoriId(recipientDotoriId);
   if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
-
   if (recipient.id === me.id) throw new Error('자신에게는 쪽지를 보낼 수 없어요');
 
   const { data, error } = await sb
@@ -439,7 +421,7 @@ async function sendNote(recipientDotoriId, message) {
     .insert([{
       sender_id: me.id,
       recipient_id: recipient.id,
-      message: message
+      message
     }])
     .select()
     .single();
@@ -460,19 +442,18 @@ async function getInbox() {
 
   if (error) return [];
 
-  // Fetch sender profiles
   const senderIds = [...new Set(data.map((n) => n.sender_id))];
   const { data: senders } = await sb
     .from('profiles')
     .select('id, dotori_id, nickname, mini_me')
     .in('id', senderIds);
 
-  const senderMap = {};
-  (senders || []).forEach((s) => { senderMap[s.id] = s; });
+  const map = {};
+  (senders || []).forEach((s) => { map[s.id] = s; });
 
   return data.map((n) => ({
     ...n,
-    sender: senderMap[n.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+    sender: map[n.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
   }));
 }
 
@@ -494,12 +475,12 @@ async function getSentNotes() {
     .select('id, dotori_id, nickname, mini_me')
     .in('id', recipientIds);
 
-  const recipientMap = {};
-  (recipients || []).forEach((r) => { recipientMap[r.id] = r; });
+  const map = {};
+  (recipients || []).forEach((r) => { map[r.id] = r; });
 
   return data.map((n) => ({
     ...n,
-    recipient: recipientMap[n.recipient_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+    recipient: map[n.recipient_id] || { nickname: '알 수 없음', mini_me: '🌰' }
   }));
 }
 
@@ -526,7 +507,20 @@ async function markNoteRead(noteId) {
   return !error;
 }
 
-// ---------- Friend Requests (일촌 신청) ----------
+// ---------- Friends (일촌) ----------
+
+async function getMyIlchonCount() {
+  const me = await getProfile();
+  if (!me) return 0;
+
+  const { data, error } = await sb
+    .from('ilchon')
+    .select('*')
+    .or(`user_a.eq.${me.id},user_b.eq.${me.id}`);
+
+  if (error) return 0;
+  return data.length;
+}
 
 async function sendFriendRequest(recipientDotoriId) {
   const me = await getProfile();
@@ -534,8 +528,19 @@ async function sendFriendRequest(recipientDotoriId) {
 
   const recipient = await getProfileByDotoriId(recipientDotoriId);
   if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
-
   if (recipient.id === me.id) throw new Error('자신에게는 신청할 수 없어요');
+
+  // Check 12 limit
+  const myCount = await getMyIlchonCount();
+  if (myCount >= MAX_ILCHON) {
+    throw new Error('일촌은 12명까지만 될 수 있어요. 진짜 친구는 그 정도면 충분해요.');
+  }
+
+  // Check if already friends
+  const ilchon = await getIlchon();
+  if (ilchon.some((f) => f.dotori_id === recipientDotoriId)) {
+    throw new Error('이미 일촌이에요');
+  }
 
   const { data, error } = await sb
     .from('friend_requests')
@@ -570,21 +575,27 @@ async function getPendingRequests() {
   const senderIds = [...new Set(data.map((r) => r.sender_id))];
   const { data: senders } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me')
+    .select('id, dotori_id, nickname, mini_me, status_message')
     .in('id', senderIds);
 
-  const senderMap = {};
-  (senders || []).forEach((s) => { senderMap[s.id] = s; });
+  const map = {};
+  (senders || []).forEach((s) => { map[s.id] = s; });
 
   return data.map((r) => ({
     ...r,
-    sender: senderMap[r.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+    sender: map[r.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
   }));
 }
 
 async function acceptFriendRequest(requestId) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  // Check my limit
+  const myCount = await getMyIlchonCount();
+  if (myCount >= MAX_ILCHON) {
+    throw new Error('일촌은 12명까지만 될 수 있어요.');
+  }
 
   const { data: request, error: reqErr } = await sb
     .from('friend_requests')
@@ -594,13 +605,11 @@ async function acceptFriendRequest(requestId) {
 
   if (reqErr || !request) throw new Error('신청을 찾을 수 없어요');
 
-  // Update request status
   await sb
     .from('friend_requests')
     .update({ status: 'accepted' })
     .eq('id', requestId);
 
-  // Create ilchon row (order the two IDs so we don't duplicate)
   const [a, b] = [me.id, request.sender_id].sort();
 
   const { error: ilErr } = await sb
@@ -633,49 +642,199 @@ async function getIlchon() {
   if (error) return [];
 
   const friendIds = data.map((row) => row.user_a === me.id ? row.user_b : row.user_a);
+  if (friendIds.length === 0) return [];
 
   const { data: friends } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me, status_message')
+    .select('id, dotori_id, nickname, mini_me, mini_me_bg, status_message')
     .in('id', friendIds);
 
-  return (friends || []).map((f) => ({ ...f, ilchon_at: data.find((row) =>
-    row.user_a === f.id || row.user_b === f.id
-  )?.created_at }));
+  return (friends || []).map((f) => ({
+    ...f,
+    ilchon_at: data.find((row) => row.user_a === f.id || row.user_b === f.id)?.created_at
+  }));
+}
+
+// ---------- Photos ----------
+
+async function uploadPhoto(file, caption) {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('로그인이 필요해요');
+
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  // Build a unique filename
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const filename = `${me.id}/${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await sb.storage
+    .from('photos')
+    .upload(filename, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type
+    });
+
+  if (uploadError) throw uploadError;
+
+  // Get public URL
+  const { data: urlData } = sb.storage
+    .from('photos')
+    .getPublicUrl(filename);
+
+  // Save to photo_album
+  const { data, error } = await sb
+    .from('photo_album')
+    .insert([{
+      owner_id: me.id,
+      image_url: urlData.publicUrl,
+      caption: caption || ''
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getMyPhotos() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data, error } = await sb
+    .from('photo_album')
+    .select('*')
+    .eq('owner_id', me.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+  return data;
+}
+
+async function getPhotosByDotoriId(dotoriId) {
+  const owner = await getProfileByDotoriId(dotoriId);
+  if (!owner) return [];
+
+  const { data, error } = await sb
+    .from('photo_album')
+    .select('*')
+    .eq('owner_id', owner.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+  return data;
+}
+
+async function deletePhoto(photoId) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  // Get photo to find storage path
+  const { data: photo } = await sb
+    .from('photo_album')
+    .select('*')
+    .eq('id', photoId)
+    .single();
+
+  if (!photo || photo.owner_id !== me.id) return false;
+
+  // Extract storage path from public URL
+  const url = new URL(photo.image_url);
+  const path = url.pathname.split('/photos/')[1];
+
+  if (path) {
+    await sb.storage.from('photos').remove([path]);
+  }
+
+  const { error } = await sb.from('photo_album').delete().eq('id', photoId);
+  return !error;
+}
+
+// ---------- Realtime ----------
+
+function subscribeToNotes(callback) {
+  const channel = sb
+    .channel('notes-live')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'notes'
+    }, (payload) => {
+      callback(payload.new);
+    })
+    .subscribe();
+
+  return channel;
+}
+
+function subscribeToFriendRequests(callback) {
+  const channel = sb
+    .channel('friend-requests-live')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'friend_requests'
+    }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+
+  return channel;
+}
+
+function subscribeToPhotos(callback) {
+  const channel = sb
+    .channel('photos-live')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'photo_album'
+    }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+
+  return channel;
 }
 
 // ---------- Expose ----------
 
 window.DotoriSupabase = {
-  createAcorn,
-  loadAcorn,
-  loginByDotoriId,
-  getMyAcorn,
-  getSession,
-  logout,
-  getProfile,
-  getProfileByDotoriId,
-  updateProfile,
-  getTastes,
-  updateTastes,
-  getRoom,
-  saveRoom,
-  getGuestbook,
-  addGuestbookEntry,
-  deleteGuestbookEntry,
-  replyToGuestbookEntry,
-  bumpVisit,
-  getVisits,
+  MAX_ILCHON,
+
+  // Auth
+  createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
+
+  // Profile
+  getProfile, getProfileByDotoriId, updateProfile,
+
+  // Tastes
+  getTastes, updateTastes,
+
+  // Room
+  getRoom, saveRoom,
+
+  // Guestbook
+  getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
+
+  // Visits
+  bumpVisit, getVisits,
+
+  // Explore
   getAllProfiles,
   calculateMatch,
-  sendNote,
-  getInbox,
-  getSentNotes,
-  getUnreadCount,
-  markNoteRead,
-  sendFriendRequest,
-  getPendingRequests,
-  acceptFriendRequest,
-  declineFriendRequest,
-  getIlchon
+
+  // Notes
+  sendNote, getInbox, getSentNotes, getUnreadCount, markNoteRead,
+
+  // Friends
+  getMyIlchonCount, sendFriendRequest, getPendingRequests,
+  acceptFriendRequest, declineFriendRequest, getIlchon,
+
+  // Photos
+  uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
+
+  // Realtime
+  subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos
 };

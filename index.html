@@ -53,6 +53,10 @@
     <header class="site-header">
       <div class="header-top">
         <div class="header-title">
+          <button id="friends-toggle-btn" class="friends-toggle" title="일촌 목록">
+            ☰
+            <span id="friends-badge" class="friends-badge hidden">0</span>
+          </button>
           <span class="acorn">🌰</span>
           <a href="#" id="home-link">도토리숲</a>
         </div>
@@ -161,7 +165,7 @@
         <div class="panel placeholder-panel">
           <h2>미니룸</h2>
           <p>여기에 미니룸 편집기가 들어갑니다.</p>
-          <p class="muted">— Weekend 2에서 만들 예정 —</p>
+          <p class="muted">— 나중에 만들 예정 —</p>
         </div>
       </section>
 
@@ -169,7 +173,7 @@
         <div class="panel placeholder-panel">
           <h2>사진첩</h2>
           <p>여기에 사진첩이 들어갑니다.</p>
-          <p class="muted">— Weekend 3에서 만들 예정 —</p>
+          <p class="muted">— 로딩 중 —</p>
         </div>
       </section>
 
@@ -177,7 +181,7 @@
         <div class="panel placeholder-panel">
           <h2>방명록</h2>
           <p>여기에 방명록이 들어갑니다.</p>
-          <p class="muted">— Weekend 3에서 만들 예정 —</p>
+          <p class="muted">— 로딩 중 —</p>
         </div>
       </section>
 
@@ -185,7 +189,7 @@
         <div class="panel placeholder-panel">
           <h2>도토리 광장</h2>
           <p>여기에 자료실이 들어갑니다.</p>
-          <p class="muted">— Weekend 4에서 만들 예정 —</p>
+          <p class="muted">— 나중에 만들 예정 —</p>
         </div>
       </section>
 
@@ -193,7 +197,7 @@
         <div class="panel placeholder-panel">
           <h2>취향 찾기</h2>
           <p>여기에 취향 찾기가 들어갑니다.</p>
-          <p class="muted">— Weekend 8에서 만들 예정 —</p>
+          <p class="muted">— 로딩 중 —</p>
         </div>
       </section>
 
@@ -210,6 +214,18 @@
     </footer>
 
   </div>
+
+  <!-- ===== FRIENDS DRAWER ===== -->
+  <div id="friends-drawer-overlay" class="friends-drawer-overlay"></div>
+  <aside id="friends-drawer" class="friends-drawer">
+    <div class="friends-drawer-header">
+      <span>🌰 일촌</span>
+      <button id="friends-drawer-close" class="friends-drawer-close">✕</button>
+    </div>
+    <div id="friends-drawer-content" class="friends-drawer-content">
+      <p class="empty-message">불러오는 중...</p>
+    </div>
+  </aside>
 
   <!-- ===== MODAL ===== -->
   <div id="modal-overlay" class="modal-overlay hidden">
@@ -231,6 +247,8 @@
   <script src="js/profile.js"></script>
   <script src="js/taste.js"></script>
   <script src="js/notes.js"></script>
+  <script src="js/friends.js"></script>
+  <script src="js/photo.js"></script>
   <script src="js/auth.js"></script>
 </body>
 </html>
