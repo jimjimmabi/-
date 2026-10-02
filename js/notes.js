@@ -1,8 +1,8 @@
 // ============================================
-// 도토리숲 — 쪽지 (Notes / Inbox)
+// 도토리숲 — 쪽지 (Notes / Conversations)
 // ============================================
 
-// ---------- Inbox (received notes) ----------
+// ---------- Inbox: list of conversations ----------
 
 async function openInbox() {
   showModal('쪽지함',
@@ -14,10 +14,10 @@ async function openInbox() {
     ]
   );
 
-  await renderInboxContent();
+  await renderConversationList();
 }
 
-async function renderInboxContent() {
+async function renderConversationList() {
   const content = document.getElementById('inbox-content');
   if (!content) return;
 
@@ -33,150 +33,192 @@ async function renderInboxContent() {
     return;
   }
 
-  const hasInbox = Array.isArray(inbox) && inbox.length > 0;
-  const hasSent = Array.isArray(sent) && sent.length > 0;
+  // Group all notes by "the other person" (dotori_id)
+  const conversations = {};
 
-  content.innerHTML = `
-    <div class="inbox-tabs">
-      <button class="inbox-tab active" data-inbox-tab="received">받은 쪽지 ${hasInbox ? `(${inbox.length})` : ''}</button>
-      <button class="inbox-tab" data-inbox-tab="sent">보낸 쪽지 ${hasSent ? `(${sent.length})` : ''}</button>
-    </div>
+  (inbox || []).forEach((note) => {
+    const other = note.sender || {};
+    const key = other.dotori_id || 'unknown';
+    if (!conversations[key]) {
+      conversations[key] = {
+        dotori_id: other.dotori_id,
+        nickname: other.nickname || '익명',
+        mini_me: other.mini_me || '🌰',
+        notes: [],
+        unread: 0,
+        lastAt: 0
+      };
+    }
+    conversations[key].notes.push({ ...note, direction: 'received' });
+    if (!note.is_read) conversations[key].unread += 1;
+    const t = new Date(note.created_at).getTime();
+    if (t > conversations[key].lastAt) conversations[key].lastAt = t;
+  });
 
-    <div id="inbox-received" class="inbox-list">
-      ${hasInbox ? '' : '<p class="empty-message">아직 받은 쪽지가 없어요.<br><span style="color:#BBB; font-size:11px;">취향 찾기에서 마음이 가는 사람에게 먼저 인사를 건네보세요.</span></p>'}
-    </div>
+  (sent || []).forEach((note) => {
+    const other = note.recipient || {};
+    const key = other.dotori_id || 'unknown';
+    if (!conversations[key]) {
+      conversations[key] = {
+        dotori_id: other.dotori_id,
+        nickname: other.nickname || '익명',
+        mini_me: other.mini_me || '🌰',
+        notes: [],
+        unread: 0,
+        lastAt: 0
+      };
+    }
+    conversations[key].notes.push({ ...note, direction: 'sent' });
+    const t = new Date(note.created_at).getTime();
+    if (t > conversations[key].lastAt) conversations[key].lastAt = t;
+  });
 
-    <div id="inbox-sent" class="inbox-list hidden">
-      ${hasSent ? '' : '<p class="empty-message">아직 보낸 쪽지가 없어요.</p>'}
-    </div>
-  `;
+  const list = Object.values(conversations).sort((a, b) => b.lastAt - a.lastAt);
 
-  // Render received
-  const receivedList = document.getElementById('inbox-received');
-  if (hasInbox) {
-    inbox.forEach((note) => {
-      receivedList.appendChild(renderReceivedNote(note));
-    });
+  if (list.length === 0) {
+    content.innerHTML = `
+      <p class="empty-message">
+        아직 쪽지가 없어요.<br>
+        <span style="color:#BBB; font-size:11px;">취향 찾기에서 마음이 가는 사람에게 먼저 인사를 건네보세요.</span>
+      </p>
+    `;
+    return;
   }
 
-  // Render sent
-  const sentList = document.getElementById('inbox-sent');
-  if (hasSent) {
-    sent.forEach((note) => {
-      sentList.appendChild(renderSentNote(note));
-    });
-  }
+  content.innerHTML = '';
+  list.forEach((conv) => {
+    // Sort notes in this conversation chronologically
+    conv.notes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const lastNote = conv.notes[conv.notes.length - 1];
+    const preview = (lastNote.message || '').slice(0, 40);
+    const isMine = lastNote.direction === 'sent';
 
-  // Wire tab switching
-  document.querySelectorAll('.inbox-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.inbox-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
+    const div = document.createElement('div');
+    div.className = 'inbox-conv' + (conv.unread > 0 ? ' unread' : '');
+    div.innerHTML = `
+      <div class="inbox-conv-avatar">${conv.mini_me}</div>
+      <div class="inbox-conv-main">
+        <div class="inbox-conv-header">
+          <strong>${escapeHtml(conv.nickname)}</strong>
+          ${conv.unread > 0 ? `<span class="inbox-conv-badge">${conv.unread}</span>` : ''}
+          <span class="inbox-conv-time">${formatTime(lastNote.created_at)}</span>
+        </div>
+        <div class="inbox-conv-preview">
+          ${isMine ? '<span class="inbox-mine-marker">나:</span> ' : ''}${escapeHtml(preview)}${lastNote.message.length > 40 ? '...' : ''}
+        </div>
+      </div>
+    `;
 
-      const target = tab.dataset.inboxTab;
-      document.getElementById('inbox-received').classList.toggle('hidden', target !== 'received');
-      document.getElementById('inbox-sent').classList.toggle('hidden', target !== 'sent');
+    div.addEventListener('click', () => {
+      openConversation(conv);
     });
+
+    content.appendChild(div);
   });
 }
 
-function renderReceivedNote(note) {
-  const div = document.createElement('div');
-  div.className = 'inbox-note' + (note.is_read ? '' : ' unread');
+// ---------- One conversation ----------
 
-  const sender = note.sender || { nickname: '익명', mini_me: '🌰', dotori_id: null };
-
-  div.innerHTML = `
-    <div class="inbox-note-header">
-      <span class="inbox-note-from">
-        ${sender.mini_me || '🌰'} <strong>${escapeHtml(sender.nickname)}</strong>
-      </span>
-      <span class="inbox-note-time">${formatTime(note.created_at)}</span>
-    </div>
-    <div class="inbox-note-body">
-      <p class="inbox-note-message">${escapeHtml(note.message)}</p>
-    </div>
-    <div class="inbox-note-actions">
-      ${sender.dotori_id ? `<button class="small-btn reply-btn" data-dotori="${sender.dotori_id}" data-nickname="${escapeHtml(sender.nickname)}">답장</button>` : ''}
-      ${sender.dotori_id ? `<button class="small-btn visit-btn" data-dotori="${sender.dotori_id}">방문</button>` : ''}
-    </div>
-  `;
-
-  // Mark as read when opened
-  if (!note.is_read) {
-    DotoriStorage.markNoteRead(note.id).then(() => {
-      DotoriStorage.getUnreadCount().then((count) => {
-        const inboxCount = document.getElementById('inbox-count');
-        if (inboxCount) inboxCount.textContent = count;
-      });
-    });
+async function openConversation(conv) {
+  // Mark all received notes in this conversation as read
+  const unreadNotes = conv.notes.filter((n) => n.direction === 'received' && !n.is_read);
+  for (const note of unreadNotes) {
+    try { await DotoriStorage.markNoteRead(note.id); } catch (e) {}
   }
 
-  // Wire reply
-  const replyBtn = div.querySelector('.reply-btn');
-  if (replyBtn) {
-    replyBtn.addEventListener('click', () => {
-      closeModal();
-      openNoteWriter(replyBtn.dataset.dotori, replyBtn.dataset.nickname);
-    });
-  }
+  const threadHtml = conv.notes.map((note) => {
+    const mine = note.direction === 'sent';
+    return `
+      <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}">
+        <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
+          ${escapeHtml(note.message)}
+        </div>
+        <div class="chat-time">${formatDate(note.created_at)} ${formatTime(note.created_at)}</div>
+      </div>
+    `;
+  }).join('');
 
-  // Wire visit
-  const visitBtn = div.querySelector('.visit-btn');
+  showModal(`💌 ${conv.nickname}`,
+    `<div class="chat-window">
+      <div class="chat-header">
+        <div class="chat-header-avatar">${conv.mini_me}</div>
+        <div class="chat-header-name">${escapeHtml(conv.nickname)}</div>
+        ${conv.dotori_id ? `<button class="small-btn" id="chat-visit-btn" data-dotori="${conv.dotori_id}">방문하기</button>` : ''}
+      </div>
+      <div class="chat-thread" id="chat-thread">
+        ${threadHtml}
+      </div>
+      <div class="chat-compose">
+        <textarea id="chat-input" maxlength="300" rows="2"
+          placeholder="답장을 남겨보세요..." class="editor-input"></textarea>
+        <button id="chat-send-btn" class="small-btn primary">보내기</button>
+      </div>
+    </div>`,
+    [
+      { label: '닫기', onClick: closeModal }
+    ]
+  );
+
+  // Scroll to bottom of thread
+  setTimeout(() => {
+    const thread = document.getElementById('chat-thread');
+    if (thread) thread.scrollTop = thread.scrollHeight;
+
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
+  }, 50);
+
+  // Wire visit button
+  const visitBtn = document.getElementById('chat-visit-btn');
   if (visitBtn) {
     visitBtn.addEventListener('click', async () => {
       const target = await DotoriStorage.getProfileByDotoriId(visitBtn.dataset.dotori);
       if (target) {
         closeModal();
-        const homeTab = document.querySelector('.site-tabs .tab[data-tab="home"]');
-        if (homeTab) homeTab.click();
-        document.getElementById('welcome-screen').classList.add('hidden');
-        document.getElementById('main-site').classList.remove('hidden');
-        window.initVisitMode(target);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        openVisitModal(target);
       }
     });
   }
 
-  return div;
-}
+  // Wire send button
+  const sendBtn = document.getElementById('chat-send-btn');
+  const input = document.getElementById('chat-input');
 
-function renderSentNote(note) {
-  const div = document.createElement('div');
-  div.className = 'inbox-note sent';
+  const doSend = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
 
-  const recipient = note.recipient || { nickname: '익명', mini_me: '🌰', dotori_id: null };
+    try {
+      await DotoriStorage.sendNote(conv.dotori_id, msg);
 
-  div.innerHTML = `
-    <div class="inbox-note-header">
-      <span class="inbox-note-from">
-        To. ${recipient.mini_me || '🌰'} <strong>${escapeHtml(recipient.nickname)}</strong>
-      </span>
-      <span class="inbox-note-time">${formatTime(note.created_at)}</span>
-    </div>
-    <div class="inbox-note-body">
-      <p class="inbox-note-message">${escapeHtml(note.message)}</p>
-    </div>
-    <div class="inbox-note-actions">
-      ${recipient.dotori_id ? `<button class="small-btn visit-btn" data-dotori="${recipient.dotori_id}">방문</button>` : ''}
-    </div>
-  `;
+      // Append to thread immediately
+      const thread = document.getElementById('chat-thread');
+      const row = document.createElement('div');
+      row.className = 'chat-bubble-row mine';
+      row.innerHTML = `
+        <div class="chat-bubble mine">${escapeHtml(msg)}</div>
+        <div class="chat-time">${formatDate(new Date().toISOString())} ${formatTime(new Date().toISOString())}</div>
+      `;
+      thread.appendChild(row);
+      thread.scrollTop = thread.scrollHeight;
+      input.value = '';
+      input.focus();
 
-  const visitBtn = div.querySelector('.visit-btn');
-  if (visitBtn) {
-    visitBtn.addEventListener('click', async () => {
-      const target = await DotoriStorage.getProfileByDotoriId(visitBtn.dataset.dotori);
-      if (target) {
-        closeModal();
-        const homeTab = document.querySelector('.site-tabs .tab[data-tab="home"]');
-        if (homeTab) homeTab.click();
-        document.getElementById('welcome-screen').classList.add('hidden');
-        document.getElementById('main-site').classList.remove('hidden');
-        window.initVisitMode(target);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
-  }
+      // Update unread badge (shouldn't change, but just in case)
+      const count = await DotoriStorage.getUnreadCount();
+      const inboxCount = document.getElementById('inbox-count');
+      if (inboxCount) inboxCount.textContent = count;
+    } catch (err) {
+      console.error('Send failed:', err);
+      alert('쪽지를 보낼 수 없어요: ' + (err.message || ''));
+    }
+  };
 
-  return div;
+  sendBtn.addEventListener('click', doSend);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      doSend();
+    }
+  });
 }

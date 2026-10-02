@@ -94,7 +94,16 @@ async function renderHome(profile) {
 
   renderTastePreview(profile);
 
-  // Update inbox count
+  // Ilchon count
+  try {
+    const ilchon = await DotoriStorage.getIlchon();
+    const ilchonEl = document.getElementById('ilchon-count');
+    if (ilchonEl) ilchonEl.textContent = ilchon.length;
+  } catch (e) {
+    console.warn('Ilchon load failed:', e);
+  }
+
+  // Inbox count
   try {
     const count = await DotoriStorage.getUnreadCount();
     const inboxCount = document.getElementById('inbox-count');
@@ -257,6 +266,12 @@ function initHeaderButtons() {
     e.preventDefault();
     openInbox();
   });
+
+  const tasteGoBtn = document.getElementById('taste-go-btn');
+  if (tasteGoBtn) tasteGoBtn.addEventListener('click', () => {
+    const tasteTab = document.querySelector('.site-tabs .tab[data-tab="taste"]');
+    if (tasteTab) tasteTab.click();
+  });
 }
 
 // ---------- BGM ----------
@@ -343,98 +358,84 @@ function initApp(profile) {
   initTimeCapsule();
 }
 
-// ---------- Init (visiting someone else's page) ----------
+// ---------- Visit Modal (open someone's page in a big modal) ----------
 
-async function initVisitMode(profile) {
-  initTabs();
-  initBGM();
-  initTimeCapsule();
+async function openVisitModal(profile) {
+  const t = profile.tastes || {};
+  const parts = [];
+  if (t.interests && t.interests.length) parts.push(t.interests.slice(0, 3).join(' · '));
+  if (t.music && t.music.length) parts.push(t.music.slice(0, 2).join(' · '));
+  if (t.mood && t.mood.length) parts.push(t.mood.slice(0, 2).join(' · '));
 
-  // Show their profile
-  const miniMeBox = document.getElementById('mini-me-box');
-  if (miniMeBox) {
-    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
-    miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
-  }
+  const tasteHtml = parts.length
+    ? `<p class="taste-preview-text">${parts.join('<br>')}</p>${t.needs ? `<p class="taste-needs">"${escapeHtml(t.needs)}"</p>` : ''}`
+    : `<p class="taste-preview-text">아직 취향을 입력하지 않았어요.</p>`;
 
-  const nameEl = document.getElementById('mini-me-name');
-  if (nameEl) nameEl.textContent = profile.nickname;
+  // Load guestbook
+  let guestbookHtml = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
+  try {
+    const entries = await DotoriStorage.getGuestbook(profile.dotori_id);
+    if (Array.isArray(entries) && entries.length > 0) {
+      guestbookHtml = entries.slice(0, 5).map((entry) => `
+        <div class="guestbook-entry-mini">
+          <strong>${escapeHtml(entry.author_name || '익명')}</strong>
+          <span class="time">${formatTime(entry.created_at)}</span>
+          <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
+          ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+  } catch (e) {}
 
-  const statusEl = document.getElementById('mini-me-status');
-  const statusDisplay = document.getElementById('status-display');
-  const status = profile.status_message || '';
-  if (statusEl) statusEl.textContent = status;
-  if (statusDisplay) statusDisplay.textContent = status;
+  showModal(`🌰 ${profile.nickname}님의 숲`,
+    `<div class="visit-modal">
+      <div class="visit-modal-header">
+        <div class="visit-mini-me" style="background:${profile.mini_me_bg || '#EAF6FF'};">
+          ${profile.mini_me || '🌰'}
+        </div>
+        <div class="visit-info">
+          <div class="visit-name">${escapeHtml(profile.nickname)}</div>
+          <div class="visit-status">${escapeHtml(profile.status_message || '')}</div>
+        </div>
+      </div>
 
-  renderTastePreview(profile);
-  await renderGuestbookPreview(profile.dotori_id);
+      <div class="visit-section">
+        <div class="visit-section-title">🌱 취향</div>
+        ${tasteHtml}
+      </div>
 
-  // Hide edit buttons
-  ['profile-edit-btn', 'status-edit-btn', 'taste-edit-btn', 'taste-go-btn'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
+      <div class="visit-section">
+        <div class="visit-section-title">📖 방명록</div>
+        <div class="visit-guestbook">${guestbookHtml}</div>
+      </div>
 
-  // Show visiting banner
-  const headerTop = document.querySelector('.header-top');
-  if (headerTop && !document.getElementById('visit-banner')) {
-    const banner = document.createElement('div');
-    banner.id = 'visit-banner';
-    banner.className = 'visit-banner';
-    banner.innerHTML = `
-      <span>${escapeHtml(profile.nickname)}님의 숲을 보고 있어요</span>
-      <button id="return-btn" class="small-btn">내 숲으로 돌아가기</button>
-    `;
-    headerTop.appendChild(banner);
+      <div class="visit-actions">
+        <button class="small-btn primary" id="visit-note-btn">쪽지 보내기</button>
+        <button class="small-btn" id="visit-gb-btn">방명록 남기기</button>
+      </div>
+    </div>`,
+    [
+      { label: '닫기', onClick: closeModal }
+    ]
+  );
 
-    document.getElementById('return-btn').addEventListener('click', async () => {
-      const myAcorn = await DotoriStorage.getMyAcorn();
-      if (myAcorn) {
-        location.href = location.pathname + '?t=' + Date.now();
-      } else {
-        if (confirm('이 브라우저에는 당신의 도토리가 없어요. 처음 화면으로 돌아갈까요?')) {
-          localStorage.removeItem('dotori_session');
-          localStorage.removeItem('dotori_visits');
-          location.href = location.pathname + '?t=' + Date.now();
-        }
-      }
-    });
-  }
+  setTimeout(() => {
+    const noteBtn = document.getElementById('visit-note-btn');
+    if (noteBtn) {
+      noteBtn.addEventListener('click', () => {
+        closeModal();
+        openNoteWriter(profile.dotori_id, profile.nickname);
+      });
+    }
 
-  // Wire up guestbook writer for THIS profile
-  const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
-  if (guestbookWriteBtn) {
-    const newBtn = guestbookWriteBtn.cloneNode(true);
-    guestbookWriteBtn.parentNode.replaceChild(newBtn, guestbookWriteBtn);
-    newBtn.addEventListener('click', () => openGuestbookWriter(profile.dotori_id));
-  }
-
-  // Wire up send note button (if it exists)
-  const sendNoteBtn = document.getElementById('send-note-btn');
-  if (sendNoteBtn) {
-    const newBtn = sendNoteBtn.cloneNode(true);
-    sendNoteBtn.parentNode.replaceChild(newBtn, sendNoteBtn);
-    newBtn.addEventListener('click', () => openNoteWriter(profile.dotori_id, profile.nickname));
-  }
-
-  initVisitTabs(profile);
-}
-
-function initVisitTabs(profile) {
-  const tabs = document.querySelectorAll('.site-tabs .tab');
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', (e) => {
-      const target = tab.dataset.tab;
-      if (target === 'guestbook') {
-        renderGuestbookTab(profile.dotori_id);
-      }
-      if (target === 'taste') {
-        showModal('알림', '취향 찾기는 자신의 숲에서만 사용할 수 있어요.', [
-          { label: '확인', primary: true, onClick: closeModal }
-        ]);
-      }
-    });
-  });
+    const gbBtn = document.getElementById('visit-gb-btn');
+    if (gbBtn) {
+      gbBtn.addEventListener('click', () => {
+        closeModal();
+        openGuestbookWriter(profile.dotori_id);
+      });
+    }
+  }, 50);
 }
 
 // ---------- Boot ----------
@@ -444,7 +445,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 window.initApp = initApp;
-window.initVisitMode = initVisitMode;
+window.openVisitModal = openVisitModal;
 window.showModal = showModal;
 window.closeModal = closeModal;
 window.renderHome = renderHome;
