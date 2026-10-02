@@ -55,8 +55,8 @@ function initTabs() {
 
 // ---------- Home rendering ----------
 
-function renderHome(profile) {
-  if (!profile) profile = DotoriStorage.getProfile();
+async function renderHome(profile) {
+  if (!profile) profile = await DotoriStorage.getProfile();
   if (!profile) return;
 
   const miniMeBox = document.getElementById('mini-me-box');
@@ -77,15 +77,15 @@ function renderHome(profile) {
   const dateEl = document.getElementById('header-date');
   if (dateEl) dateEl.textContent = '2008년 3월 14일';
 
-  const visits = DotoriStorage.bumpVisit();
+  const visits = await DotoriStorage.bumpVisit();
   const todayEl = document.getElementById('counter-today');
   const totalEl = document.getElementById('counter-total');
   if (todayEl) todayEl.textContent = visits.todayCount;
   if (totalEl) totalEl.textContent = visits.total;
 
-  renderGuestbookPreview();
+  await renderGuestbookPreview();
 
-  const room = DotoriStorage.getRoom();
+  const room = await DotoriStorage.getRoom();
   const bgmTitle = document.getElementById('bgm-title');
   if (bgmTitle) bgmTitle.textContent = room.bgm_choice || '— 곡을 선택해주세요 —';
 
@@ -119,13 +119,18 @@ function renderTastePreview(profile) {
   `;
 }
 
-function renderGuestbookPreview() {
+async function renderGuestbookPreview() {
   const preview = document.getElementById('guestbook-preview');
   if (!preview) return;
 
-  const entries = DotoriStorage.getGuestbook();
+  let entries = [];
+  try {
+    entries = await DotoriStorage.getGuestbook();
+  } catch (e) {
+    console.warn('Guestbook load failed:', e);
+  }
 
-  if (entries.length === 0) {
+  if (!Array.isArray(entries) || entries.length === 0) {
     preview.innerHTML = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
     return;
   }
