@@ -11,6 +11,32 @@ async function initAuth() {
   const loadBtn = document.getElementById('load-acorn-btn');
   const logoutLink = document.getElementById('logout-link');
 
+  // ---------- Logout handler (ALWAYS attached, even when logged in) ----------
+
+  if (logoutLink) {
+    logoutLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+
+      showModal('알림',
+        '숲에서 나가시겠어요?<br><br>' +
+        '<span style="color:#888; font-size:11px;">도토리는 숲에 그대로 남아있어요. 이 브라우저에서만 로그아웃됩니다.</span>',
+        [
+          { label: '취소', onClick: closeModal },
+          { label: '나가기', primary: true, onClick: async () => {
+            try {
+              await DotoriStorage.logout();
+            } catch (err) {
+              console.warn('Logout failed:', err);
+            }
+            localStorage.removeItem('dotori_session');
+            closeModal();
+            location.reload();
+          }}
+        ]
+      );
+    });
+  }
+
   // ---------- Restore existing session ----------
 
   const session = DotoriStorage.getSession();
@@ -23,6 +49,7 @@ async function initAuth() {
       }
     } catch (e) {
       console.warn('Session restore failed:', e);
+      localStorage.removeItem('dotori_session');
     }
   }
 
@@ -113,17 +140,7 @@ async function initAuth() {
     if (e.key === 'Enter') createBtn.click();
   });
 
-  logoutLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    showModal('알림', '숲에서 나가시겠어요?', [
-      { label: '취소', onClick: closeModal },
-      { label: '나가기', primary: true, onClick: async () => {
-        await DotoriStorage.logout();
-        closeModal();
-        location.reload();
-      }}
-    ]);
-  });
+  // ---------- Show main site ----------
 
   function showMainSite(profile) {
     welcomeScreen.classList.add('hidden');
