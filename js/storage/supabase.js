@@ -47,7 +47,7 @@ async function createAcorn(nickname) {
       user_id: updated.id,
       is_owner: true
     }));
-    localStorage.setItem('dotori_last_id', updated.dotori_id);
+    localStorage.setItem('dotori_my_id', updated.dotori_id);
 
     return updated;
   }
@@ -81,7 +81,7 @@ async function createAcorn(nickname) {
     user_id: userId,
     is_owner: true
   }));
-  localStorage.setItem('dotori_last_id', dotoriId);
+  localStorage.setItem('dotori_my_id', dotoriId);
 
   return profile;
 }
@@ -104,14 +104,12 @@ async function loadAcorn() {
     user_id: data.id,
     is_owner: true
   }));
-  localStorage.setItem('dotori_last_id', data.dotori_id);
+  localStorage.setItem('dotori_my_id', data.dotori_id);
 
   return data;
 }
 
 async function loginByDotoriId(dotoriId) {
-  // Read-only lookup by DOTORI-ID. Returns the profile, but does NOT
-  // give the visitor write access. Used by the "visit a friend" flow.
   const { data: profile, error } = await sb
     .from('profiles')
     .select('*')
@@ -120,15 +118,26 @@ async function loginByDotoriId(dotoriId) {
 
   if (error || !profile) return null;
 
-  // Ensure we have *some* auth session so RLS read policies work
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
     await sb.auth.signInAnonymously();
   }
 
-  localStorage.setItem('dotori_last_id', dotoriId);
-
   return profile;
+}
+
+async function getMyAcorn() {
+  const myId = localStorage.getItem('dotori_my_id');
+  if (!myId) return null;
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('dotori_id', myId)
+    .single();
+
+  if (error) return null;
+  return data;
 }
 
 function getSession() {
@@ -143,7 +152,6 @@ function getSession() {
 async function logout() {
   await sb.auth.signOut();
   localStorage.removeItem('dotori_session');
-  // NOTE: we keep 'dotori_last_id' so the user can log back in
 }
 
 // ---------- Profile ----------
@@ -354,6 +362,7 @@ window.DotoriSupabase = {
   createAcorn,
   loadAcorn,
   loginByDotoriId,
+  getMyAcorn,
   getSession,
   logout,
   getProfile,

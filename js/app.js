@@ -372,9 +372,24 @@ async function initVisitMode(profile) {
     banner.className = 'visit-banner';
     banner.innerHTML = `
       <span>${escapeHtml(profile.nickname)}님의 숲을 보고 있어요</span>
-      <button class="small-btn" onclick="location.reload()">내 숲으로 돌아가기</button>
+           <button id="return-btn" class="small-btn">내 숲으로 돌아가기</button>
     `;
     headerTop.appendChild(banner);
+        document.getElementById('return-btn').addEventListener('click', async () => {
+      // If we have our own acorn, reload will take us there (initAuth checks dotori_my_id first)
+      const myAcorn = await DotoriStorage.getMyAcorn();
+      if (myAcorn) {
+        location.reload();
+      } else {
+        // No acorn of our own on this browser — clear visit state and go to welcome
+        if (confirm('이 브라우저에는 당신의 도토리가 없어요. 처음 화면으로 돌아갈까요?')) {
+          localStorage.removeItem('dotori_session');
+          localStorage.removeItem('dotori_visits');
+          // Note: we keep dotori_my_id in case they get it later
+          location.reload();
+        }
+      }
+    });
   }
 
   // Wire up the guestbook writer for THIS profile

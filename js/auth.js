@@ -38,8 +38,20 @@ async function initAuth() {
 
   // ---------- Restore existing session ----------
 
+  // Priority 1: my own acorn (dotori_my_id)
+  try {
+    const myAcorn = await DotoriStorage.getMyAcorn();
+    if (myAcorn) {
+      showMainSite(myAcorn);
+      return;
+    }
+  } catch (e) {
+    console.warn('My acorn restore failed:', e);
+  }
+
+  // Priority 2: whatever session we had
   const session = DotoriStorage.getSession();
-  if (session && session.loggedIn && session.is_owner) {
+  if (session && session.loggedIn) {
     try {
       const profile = await DotoriStorage.getProfile();
       if (profile) {
@@ -99,7 +111,7 @@ async function initAuth() {
     }
   });
 
-  // ---------- Load my acorn (returning owner) ----------
+  // ---------- Load my acorn ----------
 
   loadBtn.addEventListener('click', async () => {
     loadBtn.disabled = true;
@@ -128,7 +140,7 @@ async function initAuth() {
     }
   });
 
-  // ---------- Visit a friend's page by DOTORI-ID ----------
+  // ---------- Visit a friend's page ----------
 
   visitBtn.addEventListener('click', () => {
     showModal('도토리 ID로 들어가기',
