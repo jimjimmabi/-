@@ -239,8 +239,15 @@ async function openGuestbookWriter(ownerDotoriId) {
           }, ownerDotoriId);
 
           closeModal();
-          const updated = await DotoriStorage.getProfile();
-          await renderHome(updated);
+
+          if (ownerDotoriId) {
+            const owner = await DotoriStorage.getProfileByDotoriId(ownerDotoriId);
+            await renderGuestbookPreview(ownerDotoriId);
+            await renderGuestbookTab(ownerDotoriId);
+          } else {
+            const updated = await DotoriStorage.getProfile();
+            await renderHome(updated);
+          }
         } catch (err) {
           console.error('Guestbook write failed:', err);
           alert('방명록을 남길 수 없어요: ' + (err.message || '알 수 없는 오류'));
