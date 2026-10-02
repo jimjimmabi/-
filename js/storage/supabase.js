@@ -43,13 +43,9 @@ async function createAcorn(nickname) {
     if (updateError) throw updateError;
 
     localStorage.setItem('dotori_session', JSON.stringify({
-      loggedIn: true,
-      dotori_id: updated.dotori_id,
-      user_id: updated.id,
-      is_owner: true
+      loggedIn: true, dotori_id: updated.dotori_id, user_id: updated.id, is_owner: true
     }));
     localStorage.setItem('dotori_my_id', updated.dotori_id);
-
     return updated;
   }
 
@@ -77,10 +73,7 @@ async function createAcorn(nickname) {
   await sb.from('rooms').insert([{ user_id: userId }]);
 
   localStorage.setItem('dotori_session', JSON.stringify({
-    loggedIn: true,
-    dotori_id: dotoriId,
-    user_id: userId,
-    is_owner: true
+    loggedIn: true, dotori_id: dotoriId, user_id: userId, is_owner: true
   }));
   localStorage.setItem('dotori_my_id', dotoriId);
 
@@ -100,10 +93,7 @@ async function loadAcorn() {
   if (error) return null;
 
   localStorage.setItem('dotori_session', JSON.stringify({
-    loggedIn: true,
-    dotori_id: data.dotori_id,
-    user_id: data.id,
-    is_owner: true
+    loggedIn: true, dotori_id: data.dotori_id, user_id: data.id, is_owner: true
   }));
   localStorage.setItem('dotori_my_id', data.dotori_id);
 
@@ -316,14 +306,9 @@ async function bumpVisit() {
   const today = new Date().toISOString().slice(0, 10);
   const raw = localStorage.getItem('dotori_visits');
   const visits = raw ? JSON.parse(raw) : { today, todayCount: 0, total: 0 };
-
-  if (visits.today !== today) {
-    visits.today = today;
-    visits.todayCount = 0;
-  }
+  if (visits.today !== today) { visits.today = today; visits.todayCount = 0; }
   visits.todayCount += 1;
   visits.total += 1;
-
   localStorage.setItem('dotori_visits', JSON.stringify(visits));
   return visits;
 }
@@ -503,7 +488,6 @@ async function markNoteRead(noteId) {
     .from('notes')
     .update({ is_read: true })
     .eq('id', noteId);
-
   return !error;
 }
 
@@ -522,6 +506,44 @@ async function getMyIlchonCount() {
   return data.length;
 }
 
+async function isIlchon(dotoriId) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  const other = await getProfileByDotoriId(dotoriId);
+  if (!other) return false;
+
+  const [a, b] = [me.id, other.id].sort();
+  const { data, error } = await sb
+    .from('ilchon')
+    .select('*')
+    .eq('user_a', a)
+    .eq('user_b', b)
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data;
+}
+
+async function hasPendingRequestTo(dotoriId) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  const other = await getProfileByDotoriId(dotoriId);
+  if (!other) return false;
+
+  const { data, error } = await sb
+    .from('friend_requests')
+    .select('*')
+    .eq('sender_id', me.id)
+    .eq('recipient_id', other.id)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data;
+}
+
 async function sendFriendRequest(recipientDotoriId) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
@@ -530,17 +552,16 @@ async function sendFriendRequest(recipientDotoriId) {
   if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
   if (recipient.id === me.id) throw new Error('자신에게는 신청할 수 없어요');
 
-  // Check 12 limit
   const myCount = await getMyIlchonCount();
   if (myCount >= MAX_ILCHON) {
     throw new Error('일촌은 12명까지만 될 수 있어요. 진짜 친구는 그 정도면 충분해요.');
   }
 
-  // Check if already friends
-  const ilchon = await getIlchon();
-  if (ilchon.some((f) => f.dotori_id === recipientDotoriId)) {
-    throw new Error('이미 일촌이에요');
-  }
+  const already = await isIlchon(recipientDotoriId);
+  if (already) throw new Error('이미 일촌이에요');
+
+  const pending = await hasPendingRequestTo(recipientDotoriId);
+  if (pending) throw new Error('이미 신청했어요');
 
   const { data, error } = await sb
     .from('friend_requests')
@@ -591,11 +612,8 @@ async function acceptFriendRequest(requestId) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
-  // Check my limit
   const myCount = await getMyIlchonCount();
-  if (myCount >= MAX_ILCHON) {
-    throw new Error('일촌은 12명까지만 될 수 있어요.');
-  }
+  if (myCount >= MAX_ILCHON) throw new Error('일촌은 12명까지만 될 수 있어요.');
 
   const { data: request, error: reqErr } = await sb
     .from('friend_requests')
@@ -617,7 +635,6 @@ async function acceptFriendRequest(requestId) {
     .insert([{ user_a: a, user_b: b }]);
 
   if (ilErr && ilErr.code !== '23505') throw ilErr;
-
   return true;
 }
 
@@ -626,7 +643,6 @@ async function declineFriendRequest(requestId) {
     .from('friend_requests')
     .update({ status: 'declined' })
     .eq('id', requestId);
-
   return !error;
 }
 
@@ -664,7 +680,6 @@ async function uploadPhoto(file, caption) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
-  // Build a unique filename
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const filename = `${me.id}/${Date.now()}.${ext}`;
 
@@ -678,12 +693,8 @@ async function uploadPhoto(file, caption) {
 
   if (uploadError) throw uploadError;
 
-  // Get public URL
-  const { data: urlData } = sb.storage
-    .from('photos')
-    .getPublicUrl(filename);
+  const { data: urlData } = sb.storage.from('photos').getPublicUrl(filename);
 
-  // Save to photo_album
   const { data, error } = await sb
     .from('photo_album')
     .insert([{
@@ -730,7 +741,6 @@ async function deletePhoto(photoId) {
   const me = await getProfile();
   if (!me) return false;
 
-  // Get photo to find storage path
   const { data: photo } = await sb
     .from('photo_album')
     .select('*')
@@ -739,13 +749,10 @@ async function deletePhoto(photoId) {
 
   if (!photo || photo.owner_id !== me.id) return false;
 
-  // Extract storage path from public URL
   const url = new URL(photo.image_url);
   const path = url.pathname.split('/photos/')[1];
 
-  if (path) {
-    await sb.storage.from('photos').remove([path]);
-  }
+  if (path) await sb.storage.from('photos').remove([path]);
 
   const { error } = await sb.from('photo_album').delete().eq('id', photoId);
   return !error;
@@ -757,14 +764,9 @@ function subscribeToNotes(callback) {
   const channel = sb
     .channel('notes-live')
     .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'notes'
-    }, (payload) => {
-      callback(payload.new);
-    })
+      event: 'INSERT', schema: 'public', table: 'notes'
+    }, (payload) => callback(payload.new))
     .subscribe();
-
   return channel;
 }
 
@@ -772,14 +774,9 @@ function subscribeToFriendRequests(callback) {
   const channel = sb
     .channel('friend-requests-live')
     .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'friend_requests'
-    }, (payload) => {
-      callback(payload);
-    })
+      event: '*', schema: 'public', table: 'friend_requests'
+    }, (payload) => callback(payload))
     .subscribe();
-
   return channel;
 }
 
@@ -787,14 +784,20 @@ function subscribeToPhotos(callback) {
   const channel = sb
     .channel('photos-live')
     .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'photo_album'
-    }, (payload) => {
-      callback(payload);
-    })
+      event: '*', schema: 'public', table: 'photo_album'
+    }, (payload) => callback(payload))
     .subscribe();
+  return channel;
+}
 
+function subscribeToMyNotes(callback) {
+  // Global listener: fires for EVERY new note, callback decides whether it's relevant
+  const channel = sb
+    .channel('my-notes-live')
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'notes'
+    }, (payload) => callback(payload.new))
+    .subscribe();
   return channel;
 }
 
@@ -802,39 +805,17 @@ function subscribeToPhotos(callback) {
 
 window.DotoriSupabase = {
   MAX_ILCHON,
-
-  // Auth
   createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
-
-  // Profile
   getProfile, getProfileByDotoriId, updateProfile,
-
-  // Tastes
   getTastes, updateTastes,
-
-  // Room
   getRoom, saveRoom,
-
-  // Guestbook
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
-
-  // Visits
   bumpVisit, getVisits,
-
-  // Explore
-  getAllProfiles,
-  calculateMatch,
-
-  // Notes
+  getAllProfiles, calculateMatch,
   sendNote, getInbox, getSentNotes, getUnreadCount, markNoteRead,
-
-  // Friends
-  getMyIlchonCount, sendFriendRequest, getPendingRequests,
+  getMyIlchonCount, isIlchon, hasPendingRequestTo,
+  sendFriendRequest, getPendingRequests,
   acceptFriendRequest, declineFriendRequest, getIlchon,
-
-  // Photos
   uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
-
-  // Realtime
-  subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos
+  subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos, subscribeToMyNotes
 };
