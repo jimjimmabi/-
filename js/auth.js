@@ -9,17 +9,17 @@ async function initAuth() {
   const nicknameInput = document.getElementById('nickname-input');
   const createBtn = document.getElementById('create-acorn-btn');
   const loadBtn = document.getElementById('load-acorn-btn');
+  const visitBtn = document.getElementById('visit-acorn-btn');
   const logoutLink = document.getElementById('logout-link');
 
-  // ---------- Logout handler (ALWAYS attached, even when logged in) ----------
+  // ---------- Logout (always attached) ----------
 
   if (logoutLink) {
     logoutLink.addEventListener('click', async (e) => {
       e.preventDefault();
-
       showModal('알림',
         '숲에서 나가시겠어요?<br><br>' +
-        '<span style="color:#888; font-size:11px;">도토리는 숲에 그대로 남아있어요. 이 브라우저에서만 로그아웃됩니다.</span>',
+        '<span style="color:#888; font-size:11px;">도토리는 숲에 그대로 남아있어요. 다시 들어올 때는 도토리 ID로 들어오세요.</span>',
         [
           { label: '취소', onClick: closeModal },
           { label: '나가기', primary: true, onClick: async () => {
@@ -28,7 +28,6 @@ async function initAuth() {
             } catch (err) {
               console.warn('Logout failed:', err);
             }
-            localStorage.removeItem('dotori_session');
             closeModal();
             location.reload();
           }}
@@ -40,7 +39,7 @@ async function initAuth() {
   // ---------- Restore existing session ----------
 
   const session = DotoriStorage.getSession();
-  if (session && session.loggedIn) {
+  if (session && session.loggedIn && session.is_owner) {
     try {
       const profile = await DotoriStorage.getProfile();
       if (profile) {
@@ -49,7 +48,6 @@ async function initAuth() {
       }
     } catch (e) {
       console.warn('Session restore failed:', e);
-      localStorage.removeItem('dotori_session');
     }
   }
 
@@ -80,7 +78,7 @@ async function initAuth() {
 
       showModal('🌰 도토리가 만들어졌어요!',
         `당신의 도토리 ID는 <strong>${profile.dotori_id}</strong> 입니다.<br><br>` +
-        `<span style="color:#888; font-size:11px;">이 ID를 꼭 저장해두세요. 다른 사람이 당신의 페이지를 방문할 때 사용해요.</span>`,
+        `<span style="color:#888; font-size:11px;">이 ID를 꼭 저장해두세요. 친구들이 당신의 페이지를 방문할 때 사용해요.</span>`,
         [
           { label: '숲으로 들어가기', primary: true, onClick: () => {
             closeModal();
@@ -101,17 +99,9 @@ async function initAuth() {
     }
   });
 
-  // ---------- Load existing acorn ----------
+  // ---------- Load my acorn (returning owner) ----------
 
   loadBtn.addEventListener('click', async () => {
-    const session = DotoriStorage.getSession();
-    if (!session || !session.dotori_id) {
-      showModal('알림', '이 브라우저에는 저장된 도토리가 없어요.<br>새 도토리를 만들어주세요.', [
-        { label: '확인', primary: true, onClick: closeModal }
-      ]);
-      return;
-    }
-
     loadBtn.disabled = true;
     loadBtn.textContent = '불러오는 중...';
 
@@ -120,9 +110,11 @@ async function initAuth() {
       if (profile) {
         showMainSite(profile);
       } else {
-        showModal('알림', '도토리를 불러올 수 없어요.', [
-          { label: '확인', primary: true, onClick: closeModal }
-        ]);
+        showModal('알림',
+          '이 브라우저에 저장된 도토리가 없어요.<br>' +
+          '<span style="color:#888; font-size:11px;">도토리 ID를 알고 있다면 "도토리 ID로 들어가기"를 사용해보세요.</span>',
+          [{ label: '확인', primary: true, onClick: closeModal }]
+        );
       }
     } catch (err) {
       console.error('loadAcorn failed:', err);
@@ -136,17 +128,66 @@ async function initAuth() {
     }
   });
 
+  // ---------- Visit a friend's page by DOTORI-ID ----------
+
+  visitBtn.addEventListener('click', () => {
+    showModal('도토리 ID로 들어가기',
+      `<div class="editor-form">
+        <label>도토리 ID</label>
+        <input type="text" id="visit-dotori-id" maxlength="20"
+          placeholder="dotori-xxxx"
+          class="editor-input" autocomplete="off">
+        <p class="hint" style="margin-top:8px; color:#888; font-size:11px;">
+          친구에게 받은 도토리 ID를 입력하세요.
+        </p>
+      </div>`,
+      [
+        { label: '취소', onClick: closeModal },
+        { label: '들어가기', primary: true, onClick: async () => {
+          const input = document.getElementById('visit-dotori-id');
+          const dotoriId = input.value.trim().toLowerCase();
+
+          if (!dotoriId) return;
+
+          const profile = await DotoriStorage.loginByDotoriId(dotoriId);
+
+          if (profile) {
+            closeModal();
+            showVisitSite(profile);
+          } else {
+            alert('그런 도토리를 찾을 수 없어요: ' + dotoriId);
+          }
+        }}
+      ]
+    );
+
+    setTimeout(() => {
+      const input = document.getElementById('visit-dotori-id');
+      if (input) input.focus();
+    }, 50);
+  });
+
   nicknameInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') createBtn.click();
   });
 
-  // ---------- Show main site ----------
+  // ---------- Show main site (my page) ----------
 
   function showMainSite(profile) {
     welcomeScreen.classList.add('hidden');
     mainSite.classList.remove('hidden');
     if (window.initApp) {
       window.initApp(profile);
+    }
+  }
+
+  // ---------- Show visit site (someone else's page) ----------
+
+  function showVisitSite(profile) {
+    welcomeScreen.classList.add('hidden');
+    mainSite.classList.remove('hidden');
+    if (window.initVisitMode) {
+      window.initVisitMode(profile);
     }
   }
 }
