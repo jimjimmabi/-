@@ -13,10 +13,49 @@ const sb = window.supabase.createClient(
 // ---------- Auth ----------
 
 async function createAcorn(nickname) {
-  const { data: authData, error: authError } = await sb.auth.signInAnonymously();
-  if (authError) throw authError;
+  // 1. Check if we already have a Supabase session (already signed in)
+  const { data: { session: existingSession } } = await sb.auth.getSession();
 
-  const userId = authData.user.id;
+  let userId;
+
+  if (existingSession && existingSession.user) {
+    // Already signed in — reuse this user
+    userId = existingSession.user.id;
+  } else {
+    // First time — create anonymous user
+    const { data: authData, error: authError } = await sb.auth.signInAnonymously();
+    if (authError) throw authError;
+    userId = authData.user.id;
+  }
+
+  // 2. Check if a profile already exists for this user
+  const { data: existingProfile } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (existingProfile) {
+    // Profile exists — just update the nickname
+    const { data: updated, error: updateError } = await sb
+      .from('profiles')
+      .update({ nickname: nickname })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    localStorage.setItem('dotori_session', JSON.stringify({
+      loggedIn: true,
+      dotori_id: updated.dotori_id,
+      user_id: updated.id
+    }));
+
+    return updated;
+  }
+
+  // 3. No profile — create a new one
   const dotoriId = 'dotori-' + Math.random().toString(36).substring(2, 6);
 
   const { data: profile, error: profileError } = await sb
@@ -42,6 +81,7 @@ async function createAcorn(nickname) {
 
   if (profileError) throw profileError;
 
+  // 4. Create empty room (only for new profiles)
   await sb.from('rooms').insert([{ user_id: userId }]);
 
   localStorage.setItem('dotori_session', JSON.stringify({
