@@ -189,17 +189,7 @@ function renderTasteCard(profile) {
   visitBtn.addEventListener('click', async () => {
     const target = await DotoriStorage.getProfileByDotoriId(profile.dotori_id);
     if (target) {
-      // Switch tabs back to home first
-      const homeTab = document.querySelector('.site-tabs .tab[data-tab="home"]');
-      if (homeTab) homeTab.click();
-
-      // Enter visit mode
-      document.getElementById('welcome-screen').classList.add('hidden');
-      document.getElementById('main-site').classList.remove('hidden');
-      window.initVisitMode(target);
-
-      // Scroll to top so the banner is visible
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.openVisitModal(target);
     }
   });
 
