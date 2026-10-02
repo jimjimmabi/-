@@ -1,5 +1,5 @@
 // ============================================
-// 도토리숲 — Profile, Taste, Settings editors
+// 도토리숲 — Profile, Taste, Settings (Supabase-ready)
 // ============================================
 
 const MINI_ME_OPTIONS = ['🌰', '🦊', '🐰', '🐱', '🐻', '🌱', '🍀', '🌸'];
@@ -30,8 +30,8 @@ const MOOD_OPTIONS = [
 
 // ---------- Profile Editor ----------
 
-function openProfileEditor() {
-  const profile = DotoriStorage.getProfile();
+async function openProfileEditor() {
+  const profile = await DotoriStorage.getProfile();
   if (!profile) return;
 
   const miniMeBtns = MINI_ME_OPTIONS.map((emoji) => {
@@ -59,21 +59,22 @@ function openProfileEditor() {
     </div>`,
     [
       { label: '취소', onClick: closeModal },
-      { label: '저장', primary: true, onClick: () => {
+      { label: '저장', primary: true, onClick: async () => {
         const nickname = document.getElementById('edit-nickname').value.trim();
         if (!nickname) return;
 
         const activeEmoji = document.querySelector('.mini-me-option.active');
         const activeBg = document.querySelector('.bg-option.active');
 
-        DotoriStorage.updateProfile({
+        await DotoriStorage.updateProfile({
           nickname: nickname,
           mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
           mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg
         });
 
         closeModal();
-        renderHome(DotoriStorage.getProfile());
+        const updated = await DotoriStorage.getProfile();
+        await renderHome(updated);
       }}
     ]
   );
@@ -96,8 +97,8 @@ function openProfileEditor() {
 
 // ---------- Taste Editor ----------
 
-function openTasteEditor() {
-  const tastes = DotoriStorage.getTastes();
+async function openTasteEditor() {
+  const tastes = await DotoriStorage.getTastes();
 
   const interestChips = renderChips(INTEREST_OPTIONS, tastes.interests);
   const musicChips = renderChips(MUSIC_OPTIONS, tastes.music);
@@ -131,7 +132,7 @@ function openTasteEditor() {
     </div>`,
     [
       { label: '취소', onClick: closeModal },
-      { label: '저장', primary: true, onClick: () => {
+      { label: '저장', primary: true, onClick: async () => {
         const newTastes = {
           interests: getSelectedChips('chip-interests'),
           music: getSelectedChips('chip-music'),
@@ -141,9 +142,10 @@ function openTasteEditor() {
           needs: document.getElementById('taste-needs').value.trim()
         };
 
-        DotoriStorage.updateTastes(newTastes);
+        await DotoriStorage.updateTastes(newTastes);
         closeModal();
-        renderHome(DotoriStorage.getProfile());
+        const updated = await DotoriStorage.getProfile();
+        await renderHome(updated);
       }}
     ]
   );
@@ -172,8 +174,8 @@ function getSelectedChips(groupId) {
 
 // ---------- Settings ----------
 
-function openSettings() {
-  const profile = DotoriStorage.getProfile();
+async function openSettings() {
+  const profile = await DotoriStorage.getProfile();
   if (!profile) return;
 
   showModal('설정',
@@ -190,13 +192,8 @@ function openSettings() {
         </span>
       </div>
       <p class="settings-hint">
-        이 ID를 저장해두세요. 다른 기기에서 불러올 때 필요해요.
+        이 ID를 친구에게 알려주세요. 그들이 당신의 페이지를 방문할 수 있어요.
       </p>
-      <div class="settings-actions">
-        <button class="small-btn" id="export-btn">도토리 내보내기</button>
-        <button class="small-btn" id="import-btn">도토리 불러오기</button>
-      </div>
-      <input type="file" id="import-file" accept=".dotori,.json" style="display:none;">
     </div>`,
     [{ label: '닫기', primary: true, onClick: closeModal }]
   );
@@ -210,51 +207,12 @@ function openSettings() {
         setTimeout(() => { copyBtn.textContent = '복사'; }, 1500);
       });
     }
-
-    const exportBtn = document.getElementById('export-btn');
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => {
-        const data = DotoriStorage.exportAcorn();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = profile.dotori_id + '.dotori';
-        a.click();
-        URL.revokeObjectURL(url);
-      });
-    }
-
-    const importBtn = document.getElementById('import-btn');
-    const importFile = document.getElementById('import-file');
-    if (importBtn && importFile) {
-      importBtn.addEventListener('click', () => importFile.click());
-      importFile.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          try {
-            const data = JSON.parse(ev.target.result);
-            if (DotoriStorage.importAcorn(data)) {
-              closeModal();
-              location.reload();
-            } else {
-              alert('파일을 불러올 수 없어요.');
-            }
-          } catch (err) {
-            alert('파일이 올바르지 않아요.');
-          }
-        };
-        reader.readAsText(file);
-      });
-    }
   }, 50);
 }
 
 // ---------- Guestbook writer ----------
 
-function openGuestbookWriter() {
+async function openGuestbookWriter(ownerDotoriId) {
   showModal('방명록 남기기',
     `<div class="editor-form">
       <label>메시지</label>
@@ -268,20 +226,25 @@ function openGuestbookWriter() {
     </div>`,
     [
       { label: '취소', onClick: closeModal },
-      { label: '남기기', primary: true, onClick: () => {
+      { label: '남기기', primary: true, onClick: async () => {
         const message = document.getElementById('guestbook-message').value.trim();
         if (!message) return;
 
         const isSecret = document.getElementById('guestbook-secret').checked;
 
-        DotoriStorage.addGuestbookEntry({
-          author_name: '나',
-          message: message,
-          is_secret: isSecret
-        });
+        try {
+          await DotoriStorage.addGuestbookEntry({
+            message: message,
+            is_secret: isSecret
+          }, ownerDotoriId);
 
-        closeModal();
-        renderHome(DotoriStorage.getProfile());
+          closeModal();
+          const updated = await DotoriStorage.getProfile();
+          await renderHome(updated);
+        } catch (err) {
+          console.error('Guestbook write failed:', err);
+          alert('방명록을 남길 수 없어요: ' + (err.message || '알 수 없는 오류'));
+        }
       }}
     ]
   );
