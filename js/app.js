@@ -121,13 +121,13 @@ function renderTastePreview(profile) {
   `;
 }
 
-async function renderGuestbookPreview() {
+async function renderGuestbookPreview(ownerDotoriId) {
   const preview = document.getElementById('guestbook-preview');
   if (!preview) return;
 
   let entries = [];
   try {
-    entries = await DotoriStorage.getGuestbook();
+    entries = await DotoriStorage.getGuestbook(ownerDotoriId);
   } catch (e) {
     console.warn('Guestbook load failed:', e);
   }
@@ -151,13 +151,13 @@ async function renderGuestbookPreview() {
   });
 }
 
-async function renderGuestbookTab() {
+async function renderGuestbookTab(ownerDotoriId) {
   const container = document.querySelector('#tab-guestbook .placeholder-panel');
   if (!container) return;
 
   let entries = [];
   try {
-    entries = await DotoriStorage.getGuestbook();
+    entries = await DotoriStorage.getGuestbook(ownerDotoriId);
   } catch (e) {
     console.warn('Guestbook tab load failed:', e);
   }
@@ -188,7 +188,7 @@ async function renderGuestbookTab() {
   }
 
   const writeBtn = document.getElementById('guestbook-write-btn-full');
-  if (writeBtn) writeBtn.addEventListener('click', openGuestbookWriter);
+  if (writeBtn) writeBtn.addEventListener('click', () => openGuestbookWriter(ownerDotoriId));
 }
 
 // ---------- Status editing ----------
@@ -234,7 +234,7 @@ function initHeaderButtons() {
   if (tasteEditBtn) tasteEditBtn.addEventListener('click', openTasteEditor);
 
   const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
-  if (guestbookWriteBtn) guestbookWriteBtn.addEventListener('click', openGuestbookWriter);
+  if (guestbookWriteBtn) guestbookWriteBtn.addEventListener('click', () => openGuestbookWriter());
 
   const settingsLink = document.getElementById('settings-link');
   if (settingsLink) settingsLink.addEventListener('click', (e) => {
@@ -314,7 +314,7 @@ function formatDate(iso) {
   return `${yyyy}.${mm}.${dd}`;
 }
 
-// ---------- Init ----------
+// ---------- Init (my page) ----------
 
 function initApp(profile) {
   initTabs();
@@ -325,11 +325,89 @@ function initApp(profile) {
   initTimeCapsule();
 }
 
+// ---------- Init (visiting someone else's page) ----------
+
+async function initVisitMode(profile) {
+  initTabs();
+  initBGM();
+  initTimeCapsule();
+
+  // Show their profile
+  const miniMeBox = document.getElementById('mini-me-box');
+  if (miniMeBox) {
+    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
+    miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
+  }
+
+  const nameEl = document.getElementById('mini-me-name');
+  if (nameEl) nameEl.textContent = profile.nickname;
+
+  const statusEl = document.getElementById('mini-me-status');
+  const statusDisplay = document.getElementById('status-display');
+  const status = profile.status_message || '';
+  if (statusEl) statusEl.textContent = status;
+  if (statusDisplay) statusDisplay.textContent = status;
+
+  renderTastePreview(profile);
+  await renderGuestbookPreview(profile.dotori_id);
+
+  // Hide edit buttons
+  const profileEditBtn = document.getElementById('profile-edit-btn');
+  if (profileEditBtn) profileEditBtn.style.display = 'none';
+
+  const statusEditBtn = document.getElementById('status-edit-btn');
+  if (statusEditBtn) statusEditBtn.style.display = 'none';
+
+  const tasteEditBtn = document.getElementById('taste-edit-btn');
+  if (tasteEditBtn) tasteEditBtn.style.display = 'none';
+
+  const tasteGoBtn = document.getElementById('taste-go-btn');
+  if (tasteGoBtn) tasteGoBtn.style.display = 'none';
+
+  // Show a "visiting" banner at the top
+  const headerTop = document.querySelector('.header-top');
+  if (headerTop && !document.getElementById('visit-banner')) {
+    const banner = document.createElement('div');
+    banner.id = 'visit-banner';
+    banner.className = 'visit-banner';
+    banner.innerHTML = `
+      <span>${escapeHtml(profile.nickname)}님의 숲을 보고 있어요</span>
+      <button class="small-btn" onclick="location.reload()">내 숲으로 돌아가기</button>
+    `;
+    headerTop.appendChild(banner);
+  }
+
+  // Wire up the guestbook writer for THIS profile
+  const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
+  if (guestbookWriteBtn) {
+    const newBtn = guestbookWriteBtn.cloneNode(true);
+    guestbookWriteBtn.parentNode.replaceChild(newBtn, guestbookWriteBtn);
+    newBtn.addEventListener('click', () => openGuestbookWriter(profile.dotori_id));
+  }
+
+  initVisitTabs(profile);
+}
+
+function initVisitTabs(profile) {
+  const tabs = document.querySelectorAll('.site-tabs .tab');
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', (e) => {
+      const target = tab.dataset.tab;
+      if (target === 'guestbook') {
+        renderGuestbookTab(profile.dotori_id);
+      }
+    });
+  });
+}
+
+// ---------- Boot ----------
+
 window.addEventListener('DOMContentLoaded', () => {
   initAuth();
 });
 
 window.initApp = initApp;
+window.initVisitMode = initVisitMode;
 window.showModal = showModal;
 window.closeModal = closeModal;
 window.renderHome = renderHome;
