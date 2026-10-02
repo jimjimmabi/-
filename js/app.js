@@ -27,7 +27,6 @@ function showModal(title, bodyHtml, buttons) {
   });
 
   closeBtn.onclick = () => {
-    // If this was the chat modal, clean up the subscription
     if (typeof closeLiveChat === 'function') closeLiveChat();
     closeModal();
   };
@@ -102,25 +101,18 @@ async function renderHome(profile) {
 
   renderTastePreview(profile);
 
-  // Ilchon count
   try {
     const ilchon = await DotoriStorage.getIlchon();
     const ilchonEl = document.getElementById('ilchon-count');
     if (ilchonEl) ilchonEl.textContent = ilchon.length;
-  } catch (e) {
-    console.warn('Ilchon load failed:', e);
-  }
+  } catch (e) { console.warn('Ilchon load failed:', e); }
 
-  // Inbox count
   try {
     const count = await DotoriStorage.getUnreadCount();
     const inboxCount = document.getElementById('inbox-count');
     if (inboxCount) inboxCount.textContent = count;
-  } catch (e) {
-    console.warn('Inbox count failed:', e);
-  }
+  } catch (e) { console.warn('Inbox count failed:', e); }
 
-  // Friend request badge
   try {
     const requests = await DotoriStorage.getPendingRequests();
     const badge = document.getElementById('friends-badge');
@@ -132,9 +124,7 @@ async function renderHome(profile) {
         badge.classList.add('hidden');
       }
     }
-  } catch (e) {
-    console.warn('Friend request badge failed:', e);
-  }
+  } catch (e) { console.warn('Friend request badge failed:', e); }
 }
 
 function renderTastePreview(profile) {
@@ -171,9 +161,7 @@ async function renderGuestbookPreview(ownerDotoriId) {
   let entries = [];
   try {
     entries = await DotoriStorage.getGuestbook(ownerDotoriId);
-  } catch (e) {
-    console.warn('Guestbook load failed:', e);
-  }
+  } catch (e) { console.warn('Guestbook load failed:', e); }
 
   if (!Array.isArray(entries) || entries.length === 0) {
     preview.innerHTML = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
@@ -201,9 +189,7 @@ async function renderGuestbookTab(ownerDotoriId) {
   let entries = [];
   try {
     entries = await DotoriStorage.getGuestbook(ownerDotoriId);
-  } catch (e) {
-    console.warn('Guestbook tab load failed:', e);
-  }
+  } catch (e) { console.warn('Guestbook tab load failed:', e); }
 
   container.innerHTML = `
     <h2>방명록</h2>
@@ -296,6 +282,13 @@ function initHeaderButtons() {
     const tasteTab = document.querySelector('.site-tabs .tab[data-tab="taste"]');
     if (tasteTab) tasteTab.click();
   });
+
+  // Notification banner buttons
+  const notifEnableBtn = document.getElementById('notif-enable-btn');
+  if (notifEnableBtn) notifEnableBtn.addEventListener('click', requestNotificationPermission);
+
+  const notifDismissBtn = document.getElementById('notif-dismiss-btn');
+  if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
 }
 
 // ---------- BGM ----------
@@ -366,8 +359,6 @@ function formatDate(iso) {
 function initRealtimeSubscriptions() {
   try {
     friendRequestChannel = DotoriStorage.subscribeToFriendRequests(async () => {
-      // A friend request was created, updated, or deleted
-      // Refresh the badge on the header
       try {
         const requests = await DotoriStorage.getPendingRequests();
         const badge = document.getElementById('friends-badge');
@@ -405,6 +396,7 @@ function initApp(profile) {
   initTimeCapsule();
   initFriendsDrawer();
   initRealtimeSubscriptions();
+  initNotifications();
 }
 
 // ---------- Visit Modal ----------
@@ -420,7 +412,6 @@ async function openVisitModal(profile) {
     ? `<p class="taste-preview-text">${parts.join('<br>')}</p>${t.needs ? `<p class="taste-needs">"${escapeHtml(t.needs)}"</p>` : ''}`
     : `<p class="taste-preview-text">아직 취향을 입력하지 않았어요.</p>`;
 
-  // Load guestbook
   let guestbookHtml = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
   try {
     const entries = await DotoriStorage.getGuestbook(profile.dotori_id);
@@ -436,7 +427,6 @@ async function openVisitModal(profile) {
     }
   } catch (e) {}
 
-  // Load photos
   let photosHtml = '<p class="empty-message">아직 사진이 없어요.</p>';
   try {
     const photos = await DotoriStorage.getPhotosByDotoriId(profile.dotori_id);
@@ -449,6 +439,24 @@ async function openVisitModal(profile) {
       `).join('')}</div>`;
     }
   } catch (e) {}
+
+  let alreadyFriends = false;
+  let alreadyPending = false;
+  try {
+    alreadyFriends = await DotoriStorage.isIlchon(profile.dotori_id);
+    if (!alreadyFriends) {
+      alreadyPending = await DotoriStorage.hasPendingRequestTo(profile.dotori_id);
+    }
+  } catch (e) {}
+
+  let friendBtnHtml = '';
+  if (alreadyFriends) {
+    friendBtnHtml = `<button class="small-btn" disabled style="opacity:0.55; cursor:default;">이미 일촌이에요 ✓</button>`;
+  } else if (alreadyPending) {
+    friendBtnHtml = `<button class="small-btn" disabled style="opacity:0.55; cursor:default;">신청함</button>`;
+  } else {
+    friendBtnHtml = `<button class="small-btn" id="visit-friend-btn">일촌 신청</button>`;
+  }
 
   showModal(`🌰 ${profile.nickname}님의 숲`,
     `<div class="visit-modal">
@@ -479,7 +487,7 @@ async function openVisitModal(profile) {
 
       <div class="visit-actions">
         <button class="small-btn primary" id="visit-note-btn">쪽지 보내기</button>
-        <button class="small-btn" id="visit-friend-btn">일촌 신청</button>
+        ${friendBtnHtml}
         <button class="small-btn" id="visit-gb-btn">방명록 남기기</button>
       </div>
     </div>`,
@@ -522,7 +530,6 @@ async function openVisitModal(profile) {
       });
     }
 
-    // Photo lightbox in visit modal
     document.querySelectorAll('.visit-photo-img').forEach((img) => {
       img.addEventListener('click', () => {
         showModal('📷 사진',

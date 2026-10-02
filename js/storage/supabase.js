@@ -159,6 +159,17 @@ async function getProfile() {
   return data;
 }
 
+async function getProfileById(userId) {
+  const { data, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) return null;
+  return data;
+}
+
 async function getProfileByDotoriId(dotoriId) {
   const { data, error } = await sb
     .from('profiles')
@@ -791,7 +802,6 @@ function subscribeToPhotos(callback) {
 }
 
 function subscribeToMyNotes(callback) {
-  // Global listener: fires for EVERY new note, callback decides whether it's relevant
   const channel = sb
     .channel('my-notes-live')
     .on('postgres_changes', {
@@ -806,7 +816,7 @@ function subscribeToMyNotes(callback) {
 window.DotoriSupabase = {
   MAX_ILCHON,
   createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
-  getProfile, getProfileByDotoriId, updateProfile,
+  getProfile, getProfileById, getProfileByDotoriId, updateProfile,
   getTastes, updateTastes,
   getRoom, saveRoom,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
