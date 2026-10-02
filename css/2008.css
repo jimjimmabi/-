@@ -899,3 +899,209 @@ textarea.editor-input {
   padding: 3px 8px;
   font-weight: normal;
 }
+
+/* ============================================
+   취향 찾기 (Taste Finder)
+   ============================================ */
+
+.taste-page {
+  max-width: 100%;
+}
+
+.taste-header {
+  text-align: center;
+  padding: 10px 0 20px;
+  border-bottom: 1px solid #EEEEEE;
+  margin-bottom: 16px;
+}
+
+.taste-header h2 {
+  font-size: 18px;
+  color: var(--acorn-dark);
+  margin-bottom: 10px;
+}
+
+.taste-purpose {
+  font-size: 11px;
+  color: var(--text-light);
+  line-height: 1.7;
+}
+
+.taste-search {
+  margin-bottom: 12px;
+}
+
+.taste-search input {
+  width: 100%;
+}
+
+.taste-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 5px 14px;
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-radius: 14px;
+  font-size: 11px;
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+.filter-chip:hover {
+  background: #FFF0F8;
+}
+
+.filter-chip.active {
+  background: linear-gradient(to bottom, #FFB8D4, var(--pink));
+  border-color: var(--pink-dark);
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+.taste-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.taste-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: #FFFFFF;
+  border: 1px solid #EEEEEE;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.taste-card:hover {
+  border-color: var(--pink);
+  box-shadow: 0 2px 8px rgba(255, 158, 196, 0.15);
+}
+
+.taste-card-left {
+  flex-shrink: 0;
+}
+
+.taste-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 6px;
+  border: 1px solid #DDDDDD;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+}
+
+.taste-card-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.taste-card-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--acorn-dark);
+  margin-bottom: 3px;
+}
+
+.taste-card-status {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-bottom: 8px;
+}
+
+.taste-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.taste-tag {
+  padding: 2px 9px;
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-radius: 10px;
+  font-size: 10px;
+  color: var(--text);
+}
+
+.taste-needs-line {
+  font-size: 11px;
+  color: var(--pink-dark);
+  font-style: italic;
+  margin-bottom: 8px;
+  padding-left: 8px;
+  border-left: 2px solid #FFC8DD;
+}
+
+.match-bar {
+  position: relative;
+  height: 18px;
+  background: #F5F5F5;
+  border-radius: 9px;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+
+.match-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(to right, #FFD4E8, var(--pink));
+  border-radius: 9px;
+  transition: width 0.4s ease;
+}
+
+.match-label {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--text);
+  font-weight: bold;
+}
+
+.match-bar-empty {
+  background: transparent;
+}
+
+.match-bar-empty .match-label {
+  color: #CCCCCC;
+  font-weight: normal;
+}
+
+.match-reasons {
+  font-size: 10px;
+  color: var(--text-light);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.taste-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.note-to {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #EEEEEE;
+}
+
+.note-to strong {
+  color: var(--acorn-dark);
+  font-size: 13px;
+}

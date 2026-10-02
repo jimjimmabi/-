@@ -51,6 +51,7 @@ function initTabs() {
       if (targetEl) targetEl.classList.add('active');
 
       if (target === 'guestbook') renderGuestbookTab();
+      if (target === 'taste') initTasteTab();
     });
   });
 }
