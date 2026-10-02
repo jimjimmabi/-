@@ -93,6 +93,15 @@ async function renderHome(profile) {
   if (bgmTitle) bgmTitle.textContent = room.bgm_choice || '— 곡을 선택해주세요 —';
 
   renderTastePreview(profile);
+
+  // Update inbox count
+  try {
+    const count = await DotoriStorage.getUnreadCount();
+    const inboxCount = document.getElementById('inbox-count');
+    if (inboxCount) inboxCount.textContent = count;
+  } catch (e) {
+    console.warn('Inbox count failed:', e);
+  }
 }
 
 function renderTastePreview(profile) {
@@ -246,9 +255,7 @@ function initHeaderButtons() {
   const inboxLink = document.getElementById('inbox-link');
   if (inboxLink) inboxLink.addEventListener('click', (e) => {
     e.preventDefault();
-    showModal('쪽지함', '쪽지 기능은 Weekend 9에서 추가됩니다.', [
-      { label: '확인', primary: true, onClick: closeModal }
-    ]);
+    openInbox();
   });
 }
 
@@ -259,13 +266,13 @@ function initBGM() {
   const selectBtn = document.getElementById('bgm-select-btn');
 
   if (playBtn) playBtn.addEventListener('click', () => {
-    showModal('BGM', 'BGM 기능은 Weekend 3 후반에 추가됩니다.', [
+    showModal('BGM', 'BGM 기능은 나중에 추가됩니다.', [
       { label: '확인', primary: true, onClick: closeModal }
     ]);
   });
 
   if (selectBtn) selectBtn.addEventListener('click', () => {
-    showModal('BGM 설정', 'BGM 목록은 Weekend 3 후반에 추가됩니다.', [
+    showModal('BGM 설정', 'BGM 목록은 나중에 추가됩니다.', [
       { label: '확인', primary: true, onClick: closeModal }
     ]);
   });
@@ -280,7 +287,7 @@ function initTimeCapsule() {
   link.addEventListener('click', () => {
     showModal('📼 저장된 시간',
       `이 페이지는 2008년 3월 14일에 저장되었습니다.<br><br>
-      <span style="color:#888; font-size:11px;">시간 여행 기능은 Weekend 5에서 완성됩니다.</span>`,
+      <span style="color:#888; font-size:11px;">시간 여행 기능은 나중에 완성됩니다.</span>`,
       [{ label: '확인', primary: true, onClick: closeModal }]
     );
   });
@@ -318,6 +325,16 @@ function formatDate(iso) {
 // ---------- Init (my page) ----------
 
 function initApp(profile) {
+  // Remove any leftover visit banner
+  const oldBanner = document.getElementById('visit-banner');
+  if (oldBanner) oldBanner.remove();
+
+  // Make sure edit buttons are visible
+  ['profile-edit-btn', 'status-edit-btn', 'taste-edit-btn', 'taste-go-btn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+
   initTabs();
   renderHome(profile);
   initStatusEdit();
@@ -353,19 +370,12 @@ async function initVisitMode(profile) {
   await renderGuestbookPreview(profile.dotori_id);
 
   // Hide edit buttons
-  const profileEditBtn = document.getElementById('profile-edit-btn');
-  if (profileEditBtn) profileEditBtn.style.display = 'none';
+  ['profile-edit-btn', 'status-edit-btn', 'taste-edit-btn', 'taste-go-btn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
-  const statusEditBtn = document.getElementById('status-edit-btn');
-  if (statusEditBtn) statusEditBtn.style.display = 'none';
-
-  const tasteEditBtn = document.getElementById('taste-edit-btn');
-  if (tasteEditBtn) tasteEditBtn.style.display = 'none';
-
-  const tasteGoBtn = document.getElementById('taste-go-btn');
-  if (tasteGoBtn) tasteGoBtn.style.display = 'none';
-
-  // Show a "visiting" banner at the top
+  // Show visiting banner
   const headerTop = document.querySelector('.header-top');
   if (headerTop && !document.getElementById('visit-banner')) {
     const banner = document.createElement('div');
@@ -373,32 +383,38 @@ async function initVisitMode(profile) {
     banner.className = 'visit-banner';
     banner.innerHTML = `
       <span>${escapeHtml(profile.nickname)}님의 숲을 보고 있어요</span>
-           <button id="return-btn" class="small-btn">내 숲으로 돌아가기</button>
+      <button id="return-btn" class="small-btn">내 숲으로 돌아가기</button>
     `;
     headerTop.appendChild(banner);
-        document.getElementById('return-btn').addEventListener('click', async () => {
-      // If we have our own acorn, reload will take us there (initAuth checks dotori_my_id first)
+
+    document.getElementById('return-btn').addEventListener('click', async () => {
       const myAcorn = await DotoriStorage.getMyAcorn();
       if (myAcorn) {
-        location.reload();
+        location.href = location.pathname + '?t=' + Date.now();
       } else {
-        // No acorn of our own on this browser — clear visit state and go to welcome
         if (confirm('이 브라우저에는 당신의 도토리가 없어요. 처음 화면으로 돌아갈까요?')) {
           localStorage.removeItem('dotori_session');
           localStorage.removeItem('dotori_visits');
-          // Note: we keep dotori_my_id in case they get it later
-          location.reload();
+          location.href = location.pathname + '?t=' + Date.now();
         }
       }
     });
   }
 
-  // Wire up the guestbook writer for THIS profile
+  // Wire up guestbook writer for THIS profile
   const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
   if (guestbookWriteBtn) {
     const newBtn = guestbookWriteBtn.cloneNode(true);
     guestbookWriteBtn.parentNode.replaceChild(newBtn, guestbookWriteBtn);
     newBtn.addEventListener('click', () => openGuestbookWriter(profile.dotori_id));
+  }
+
+  // Wire up send note button (if it exists)
+  const sendNoteBtn = document.getElementById('send-note-btn');
+  if (sendNoteBtn) {
+    const newBtn = sendNoteBtn.cloneNode(true);
+    sendNoteBtn.parentNode.replaceChild(newBtn, sendNoteBtn);
+    newBtn.addEventListener('click', () => openNoteWriter(profile.dotori_id, profile.nickname));
   }
 
   initVisitTabs(profile);
@@ -411,6 +427,11 @@ function initVisitTabs(profile) {
       const target = tab.dataset.tab;
       if (target === 'guestbook') {
         renderGuestbookTab(profile.dotori_id);
+      }
+      if (target === 'taste') {
+        showModal('알림', '취향 찾기는 자신의 숲에서만 사용할 수 있어요.', [
+          { label: '확인', primary: true, onClick: closeModal }
+        ]);
       }
     });
   });
@@ -427,4 +448,5 @@ window.initVisitMode = initVisitMode;
 window.showModal = showModal;
 window.closeModal = closeModal;
 window.renderHome = renderHome;
+window.renderGuestbookTab = renderGuestbookTab;
 window.escapeHtml = escapeHtml;
