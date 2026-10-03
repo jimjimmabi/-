@@ -56,10 +56,7 @@ let roomSelectedFurniture = null;
 let roomCurrentProfile = null;
 let roomReadOnly = false;
 
-// The active tool: 'place' | 'move' | 'character' | 'eraser'
 let roomActiveTool = 'place';
-
-// When in move mode, this holds the key of the item being moved
 let roomMovingKey = null;
 
 // ---------- Init: my room ----------
@@ -115,8 +112,6 @@ function renderMiniRoomTab(container) {
         </div>
 
         <div class="miniroom-toolbox">
-
-          <!-- Tool bar -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">도구</div>
             <div class="miniroom-tools" id="miniroom-tools"></div>
@@ -125,25 +120,21 @@ function renderMiniRoomTab(container) {
             </p>
           </div>
 
-          <!-- Furniture palette -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">가구</div>
             <div class="miniroom-palette" id="miniroom-palette"></div>
           </div>
 
-          <!-- Wallpaper -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">벽지</div>
             <div class="miniroom-wallpaper-options" id="miniroom-wallpaper"></div>
           </div>
 
-          <!-- Floor -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">바닥</div>
             <div class="miniroom-floor-options" id="miniroom-floor"></div>
           </div>
 
-          <!-- Actions -->
           <div class="miniroom-tool-section">
             <button id="miniroom-save-btn" class="small-btn primary" style="width:100%;">
               💾 저장하기
@@ -193,7 +184,6 @@ function renderToolBar() {
       roomSelectedFurniture = null;
       roomMovingKey = null;
 
-      // Update hint text
       const hint = document.getElementById('miniroom-tool-hint');
       if (hint) hint.textContent = tool.hint;
 
@@ -218,7 +208,6 @@ function renderRoomGrid() {
   const floor = FLOOR_OPTIONS.find((f) => f.id === roomState.floor) || FLOOR_OPTIONS[0];
   const floorColor = floor.css;
 
-  // Add a class to indicate current tool for cursor styling
   grid.className = 'miniroom-grid miniroom-tool-' + roomActiveTool;
 
   grid.innerHTML = '';
@@ -241,7 +230,6 @@ function renderRoomGrid() {
         furniture.className = 'miniroom-furniture';
         furniture.textContent = item.emoji;
 
-        // Highlight the item being moved
         if (roomActiveTool === 'move' && roomMovingKey === key) {
           furniture.classList.add('moving');
         }
@@ -270,9 +258,7 @@ function handleCellClick(row, col) {
   const isMiniMeCell = roomState.miniMePosition.row === row && roomState.miniMePosition.col === col;
   const hasFurniture = !!roomState.layout[key];
 
-  // ---------- Character tool ----------
   if (roomActiveTool === 'character') {
-    // Can't place mini-me on a cell with furniture
     if (hasFurniture) {
       flashCell(row, col);
       return;
@@ -282,7 +268,6 @@ function handleCellClick(row, col) {
     return;
   }
 
-  // ---------- Eraser tool ----------
   if (roomActiveTool === 'eraser') {
     if (hasFurniture) {
       delete roomState.layout[key];
@@ -291,9 +276,7 @@ function handleCellClick(row, col) {
     return;
   }
 
-  // ---------- Move tool ----------
   if (roomActiveTool === 'move') {
-    // Case A: nothing picked up yet
     if (!roomMovingKey) {
       if (hasFurniture) {
         roomMovingKey = key;
@@ -302,9 +285,7 @@ function handleCellClick(row, col) {
       return;
     }
 
-    // Case B: something picked up — try to drop here
     if (hasFurniture) {
-      // Can't drop onto another furniture — swap instead
       const movingItem = roomState.layout[roomMovingKey];
       const targetItem = roomState.layout[key];
       roomState.layout[key] = movingItem;
@@ -319,7 +300,6 @@ function handleCellClick(row, col) {
       return;
     }
 
-    // Move the item
     roomState.layout[key] = roomState.layout[roomMovingKey];
     delete roomState.layout[roomMovingKey];
     roomMovingKey = null;
@@ -327,7 +307,6 @@ function handleCellClick(row, col) {
     return;
   }
 
-  // ---------- Place tool (default) ----------
   if (isMiniMeCell) return;
 
   if (!roomSelectedFurniture) {
@@ -482,6 +461,16 @@ async function saveMiniRoom() {
         });
       } else {
         alert('미니룸이 저장되었어요!');
+      }
+
+      // NEW: refresh the home preview immediately
+      if (typeof renderRoomPreviewHome === 'function') {
+        try {
+          const profile = await DotoriStorage.getProfile();
+          await renderRoomPreviewHome(profile);
+        } catch (e) {
+          console.warn('Home preview refresh failed:', e);
+        }
       }
     } else {
       alert('저장할 수 없어요');
