@@ -1054,53 +1054,29 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   opacity: 1;
 }
 
-/* ---------- Avatar + tail ---------- */
+/* ---------- Avatar ---------- */
 
 .toast-avatar-wrap {
   position: relative;
   flex-shrink: 0;
   margin-right: 10px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .toast-avatar {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(to bottom, #FFF8F0, #FFE8F0);
-  border: 2px solid var(--pink);
-  border-radius: 10px;
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(to bottom, #EAF6FF, #FFF8F0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 28px;
   line-height: 1;
-  box-shadow: 0 2px 8px rgba(232, 123, 168, 0.25);
+  box-shadow: 0 2px 6px rgba(198, 139, 74, 0.15);
   position: relative;
   z-index: 2;
-}
-
-.toast-tail {
-  position: absolute;
-  right: -8px;
-  top: 14px;
-  width: 0;
-  height: 0;
-  border-top: 7px solid transparent;
-  border-bottom: 7px solid transparent;
-  border-left: 10px solid var(--pink);
-  z-index: 1;
-}
-
-.toast-tail::after {
-  content: '';
-  position: absolute;
-  left: -11px;
-  top: -6px;
-  width: 0;
-  height: 0;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left: 9px solid #FFFFFF;
 }
 
 /* ---------- Bubble ---------- */
@@ -1109,33 +1085,59 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   flex: 1;
   min-width: 0;
   background: #FFFFFF;
-  border: 2px solid var(--pink);
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   padding: 10px 12px 12px;
-  box-shadow: 0 4px 14px rgba(232, 123, 168, 0.22);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   position: relative;
   transition: all 0.15s;
 }
 
+/* Triangle tail pointing at the avatar */
+.toast-bubble::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 8px solid var(--border);
+}
+
+.toast-bubble::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 15px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 7px solid #FFFFFF;
+}
+
 .toast-bubble:hover {
-  background: #FFF8F0;
-  box-shadow: 0 6px 18px rgba(232, 123, 168, 0.32);
+  border-color: var(--pink);
+  background: #FFFFFF;
+  box-shadow: 0 3px 14px rgba(232, 123, 168, 0.18);
 }
 
 .toast-bubble-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 5px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #FFE8F0;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #EEEEEE;
 }
 
 .toast-title {
   font-size: 11px;
   font-weight: bold;
   color: var(--acorn-dark);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
 }
 
 .toast-close {
@@ -1177,8 +1179,8 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   }
 
   .toast-avatar {
-    width: 40px;
-    height: 40px;
-    font-size: 22px;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
   }
 }
