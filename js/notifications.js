@@ -63,7 +63,6 @@ function setupGlobalNoteSubscription() {
     notificationChannel = DotoriStorage.subscribeToMyNotes(async (newNote) => {
       console.log('🌰 Global note received:', newNote);
 
-      // Ignore our own messages
       const me = await DotoriStorage.getProfile();
       if (!me) {
         console.warn('No profile yet — skipping notification');
@@ -72,7 +71,6 @@ function setupGlobalNoteSubscription() {
       if (newNote.sender_id === me.id) return;
       if (newNote.recipient_id !== me.id) return;
 
-      // FIXED: use getProfileById directly, no more __ helper
       const sender = await DotoriStorage.getProfileById(newNote.sender_id);
       if (!sender) {
         console.warn('Sender profile not found:', newNote.sender_id);
@@ -81,14 +79,12 @@ function setupGlobalNoteSubscription() {
 
       console.log('🌰 Toast for:', sender.nickname);
 
-      // Update inbox badge
       try {
         const count = await DotoriStorage.getUnreadCount();
         const inboxCount = document.getElementById('inbox-count');
         if (inboxCount) inboxCount.textContent = count;
       } catch (e) {}
 
-      // Toast
       showToast({
         mini_me: sender.mini_me || '🌰',
         title: `${sender.nickname}님의 쪽지`,
@@ -104,7 +100,6 @@ function setupGlobalNoteSubscription() {
         }
       });
 
-      // Browser notification
       showBrowserNotification(sender.nickname, newNote.message);
     });
   } catch (e) {
@@ -112,7 +107,7 @@ function setupGlobalNoteSubscription() {
   }
 }
 
-// ---------- Toast ----------
+// ---------- Toast (speech bubble with avatar) ----------
 
 function showToast({ mini_me, title, body, onClick }) {
   const container = document.getElementById('toast-container');
@@ -124,19 +119,27 @@ function showToast({ mini_me, title, body, onClick }) {
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.innerHTML = `
-    <div class="toast-avatar">${mini_me || '🌰'}</div>
-    <div class="toast-main">
-      <div class="toast-title">${escapeHtml(title)}</div>
+    <div class="toast-avatar-wrap">
+      <div class="toast-avatar">${mini_me || '🌰'}</div>
+      <div class="toast-tail"></div>
+    </div>
+    <div class="toast-bubble">
+      <div class="toast-bubble-header">
+        <span class="toast-title">${escapeHtml(title)}</span>
+        <button class="toast-close" aria-label="닫기">✕</button>
+      </div>
       <div class="toast-body">${escapeHtml(body)}</div>
     </div>
-    <button class="toast-close" aria-label="닫기">✕</button>
   `;
 
-  toast.querySelector('.toast-main').addEventListener('click', () => {
+  // Click on the bubble → trigger onClick
+  toast.querySelector('.toast-bubble').addEventListener('click', (e) => {
+    if (e.target.classList.contains('toast-close')) return;
     if (typeof onClick === 'function') onClick();
     removeToast(toast);
   });
 
+  // Close button
   toast.querySelector('.toast-close').addEventListener('click', (e) => {
     e.stopPropagation();
     removeToast(toast);
@@ -144,10 +147,12 @@ function showToast({ mini_me, title, body, onClick }) {
 
   container.appendChild(toast);
 
+  // Trigger slide-in
   requestAnimationFrame(() => {
     toast.classList.add('visible');
   });
 
+  // Auto-dismiss after 6 seconds
   setTimeout(() => {
     removeToast(toast);
   }, 6000);
@@ -158,7 +163,7 @@ function removeToast(toast) {
   toast.classList.remove('visible');
   setTimeout(() => {
     if (toast.parentNode) toast.parentNode.removeChild(toast);
-  }, 300);
+  }, 320);
 }
 
 // ---------- Browser notification ----------
