@@ -3,6 +3,7 @@
 // ============================================
 
 let notificationChannel = null;
+let reactionNotificationChannel = null;
 let notificationBannerDismissed = false;
 
 // ---------- Init ----------
@@ -10,6 +11,7 @@ let notificationBannerDismissed = false;
 function initNotifications() {
   maybeShowNotificationBanner();
   setupGlobalNoteSubscription();
+  setupGlobalReactionSubscription();
 }
 
 // ---------- Permission banner ----------
@@ -61,23 +63,13 @@ function setupGlobalNoteSubscription() {
 
   try {
     notificationChannel = DotoriStorage.subscribeToMyNotes(async (newNote) => {
-      console.log('🌰 Global note received:', newNote);
-
       const me = await DotoriStorage.getProfile();
-      if (!me) {
-        console.warn('No profile yet — skipping notification');
-        return;
-      }
+      if (!me) return;
       if (newNote.sender_id === me.id) return;
       if (newNote.recipient_id !== me.id) return;
 
       const sender = await DotoriStorage.getProfileById(newNote.sender_id);
-      if (!sender) {
-        console.warn('Sender profile not found:', newNote.sender_id);
-        return;
-      }
-
-      console.log('🌰 Toast for:', sender.nickname);
+      if (!sender) return;
 
       try {
         const count = await DotoriStorage.getUnreadCount();
@@ -100,10 +92,68 @@ function setupGlobalNoteSubscription() {
         }
       });
 
-      showBrowserNotification(sender.nickname, newNote.message);
+      showBrowserNotification(`${sender.nickname}님의 쪽지`, newNote.message);
     });
   } catch (e) {
     console.warn('Global note subscription failed:', e);
+  }
+}
+
+// ---------- Global reaction subscription ----------
+
+function setupGlobalReactionSubscription() {
+  if (reactionNotificationChannel) return;
+
+  try {
+    reactionNotificationChannel = DotoriStorage.subscribeToReactions(async (payload) => {
+      // Only care about NEW reactions
+      if (payload.eventType !== 'INSERT') return;
+
+      const reaction = payload.new;
+      if (!reaction || !reaction.note_id) return;
+
+      // Get our profile
+      const me = await DotoriStorage.getProfile();
+      if (!me) return;
+
+      // Ignore our own reactions
+      if (reaction.user_id === me.id) return;
+
+      // Find the note that was reacted to
+      const note = await DotoriStorage.getNoteById(reaction.note_id);
+      if (!note) return;
+
+      // Only notify if the note was sent BY me
+      if (note.sender_id !== me.id) return;
+
+      // Get the reactor's profile
+      const reactor = await DotoriStorage.getProfileById(reaction.user_id);
+      if (!reactor) return;
+
+      // Show toast
+      showToast({
+        mini_me: reactor.mini_me || '🌰',
+        title: `${reactor.nickname}님이 반응했어요`,
+        body: `${reaction.emoji} — "${truncate(note.message, 40)}"`,
+        onClick: () => {
+          if (typeof openConversationWith === 'function') {
+            openConversationWith(
+              reactor.dotori_id,
+              reactor.nickname,
+              reactor.mini_me || '🌰'
+            );
+          }
+        }
+      });
+
+      // Browser notification
+      showBrowserNotification(
+        `${reactor.nickname}님이 반응했어요`,
+        `${reaction.emoji} "${truncate(note.message, 50)}"`
+      );
+    });
+  } catch (e) {
+    console.warn('Reaction subscription failed:', e);
   }
 }
 
@@ -132,14 +182,12 @@ function showToast({ mini_me, title, body, onClick }) {
     </div>
   `;
 
-  // Click on the bubble → trigger onClick
   toast.querySelector('.toast-bubble').addEventListener('click', (e) => {
     if (e.target.classList.contains('toast-close')) return;
     if (typeof onClick === 'function') onClick();
     removeToast(toast);
   });
 
-  // Close button
   toast.querySelector('.toast-close').addEventListener('click', (e) => {
     e.stopPropagation();
     removeToast(toast);
@@ -147,12 +195,10 @@ function showToast({ mini_me, title, body, onClick }) {
 
   container.appendChild(toast);
 
-  // Trigger slide-in
   requestAnimationFrame(() => {
     toast.classList.add('visible');
   });
 
-  // Auto-dismiss after 6 seconds
   setTimeout(() => {
     removeToast(toast);
   }, 6000);
@@ -168,14 +214,14 @@ function removeToast(toast) {
 
 // ---------- Browser notification ----------
 
-function showBrowserNotification(senderName, message) {
+function showBrowserNotification(title, message) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
   try {
-    const n = new Notification(`🌰 ${senderName}님의 쪽지`, {
+    const n = new Notification(`🌰 ${title}`, {
       body: truncate(message, 80),
-      tag: 'dotori-note-' + Date.now(),
+      tag: 'dotori-notif-' + Date.now(),
       silent: false
     });
 

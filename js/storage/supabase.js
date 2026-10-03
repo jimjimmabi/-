@@ -430,6 +430,17 @@ async function sendNote(recipientDotoriId, message, replyToId) {
   return data;
 }
 
+async function getNoteById(noteId) {
+  const { data, error } = await sb
+    .from('notes')
+    .select('*')
+    .eq('id', noteId)
+    .single();
+
+  if (error) return null;
+  return data;
+}
+
 async function getInbox() {
   const me = await getProfile();
   if (!me) return [];
@@ -544,7 +555,6 @@ async function addReaction(noteId, emoji) {
     .single();
 
   if (error) {
-    // Already reacted with the same emoji (unique constraint)
     if (error.code === '23505') return null;
     throw error;
   }
@@ -569,7 +579,6 @@ async function toggleReaction(noteId, emoji) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
-  // Check if it already exists
   const { data: existing } = await sb
     .from('message_reactions')
     .select('id')
@@ -920,7 +929,7 @@ window.DotoriSupabase = {
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,
 
-  sendNote, getInbox, getSentNotes, getUnreadCount, markNoteRead,
+  sendNote, getNoteById, getInbox, getSentNotes, getUnreadCount, markNoteRead,
 
   getReactionsForNotes, addReaction, removeReaction, toggleReaction,
 
