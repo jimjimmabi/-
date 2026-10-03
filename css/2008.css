@@ -1471,3 +1471,89 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
     font-size: 16px;
   }
 }
+
+/* ============================================
+   Chat: author labels + reply emphasis
+   ============================================ */
+
+.chat-author-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--text-light);
+  margin-bottom: 2px;
+  padding: 0 8px;
+  letter-spacing: 0.3px;
+}
+
+.chat-bubble-row.mine .chat-author-label {
+  text-align: right;
+  color: var(--pink-dark);
+}
+
+.chat-bubble-row.theirs .chat-author-label {
+  text-align: left;
+  color: var(--acorn-dark);
+}
+
+/* Reply quote — prominent */
+.chat-reply-quote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  border-left: 3px solid var(--pink);
+  background: #FFF8F0;
+  color: var(--text-light);
+  overflow: hidden;
+  position: relative;
+}
+
+.chat-reply-quote.mine {
+  border-left-color: var(--pink-dark);
+  background: #FFE8F0;
+  margin-left: 20px;
+}
+
+.chat-reply-quote.theirs {
+  border-left-color: var(--acorn);
+  background: var(--cream);
+  margin-right: 20px;
+}
+
+.chat-reply-quote-icon {
+  font-size: 14px;
+  color: var(--pink-dark);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.chat-reply-quote-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-reply-quote-author {
+  display: block;
+  font-weight: bold;
+  color: var(--acorn-dark);
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
+.chat-reply-quote-text {
+  display: block;
+  color: #777;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

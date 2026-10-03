@@ -5,6 +5,7 @@
 let activeChatChannel = null;
 let activeReactionChannel = null;
 let activeChatDotoriId = null;
+let activeChatName = null;
 let activeChatNotes = [];
 let activeReplyTo = null;
 let activeIsFriend = false;
@@ -133,6 +134,7 @@ async function openConversation(conv) {
 
   // Track active chat
   activeChatDotoriId = conv.dotori_id;
+  activeChatName = conv.nickname;
   activeReplyTo = null;
 
   // Check if this is a friend
@@ -217,7 +219,6 @@ function renderConversationModal(conv) {
     const input = document.getElementById('chat-input');
     if (input) input.focus();
 
-    // CRITICAL: attach click handlers to reply/react buttons
     wireAllBubbles();
   }, 50);
 
@@ -283,15 +284,19 @@ function renderConversationModal(conv) {
 function renderChatBubble(note) {
   const mine = note.direction === 'sent';
 
+  // Reply quote — prominent
   let replyQuoteHtml = '';
   if (note.reply_to_id) {
     const parent = activeChatNotes.find((n) => n.id === note.reply_to_id);
     if (parent) {
-      const parentAuthor = parent.direction === 'sent' ? '나' : '상대';
+      const parentAuthor = parent.direction === 'sent' ? '나' : (activeChatName || '상대');
       replyQuoteHtml = `
         <div class="chat-reply-quote ${mine ? 'mine' : 'theirs'}">
-          <span class="chat-reply-quote-author">${parentAuthor}</span>
-          <span class="chat-reply-quote-text">${escapeHtml(truncate(parent.message, 60))}</span>
+          <span class="chat-reply-quote-icon">↩</span>
+          <div class="chat-reply-quote-content">
+            <span class="chat-reply-quote-author">${escapeHtml(parentAuthor)}</span>
+            <span class="chat-reply-quote-text">${escapeHtml(truncate(parent.message, 60))}</span>
+          </div>
         </div>
       `;
     }
@@ -303,8 +308,14 @@ function renderChatBubble(note) {
     <button class="chat-action-btn chat-reply-btn" data-note-id="${note.id}" title="답장">↩</button>
   `;
 
+  // Author label above every bubble
+  const authorLabelHtml = mine
+    ? `<div class="chat-author-label chat-author-mine">나</div>`
+    : `<div class="chat-author-label chat-author-theirs">${escapeHtml(activeChatName || '상대')}</div>`;
+
   return `
     <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}" data-note-id="${note.id}">
+      ${authorLabelHtml}
       ${replyQuoteHtml}
       <div class="chat-bubble-wrap">
         <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
@@ -375,7 +386,6 @@ function appendChatBubble(note, isOptimistic) {
 // ---------- Wire bubble actions (reply, react) ----------
 
 function wireBubbleActions(bubbleNode) {
-  // Reply button
   const replyBtn = bubbleNode.querySelector('.chat-reply-btn');
   if (replyBtn && !replyBtn.dataset.wired) {
     replyBtn.dataset.wired = '1';
@@ -387,7 +397,6 @@ function wireBubbleActions(bubbleNode) {
     });
   }
 
-  // React button
   const reactBtn = bubbleNode.querySelector('.chat-react-btn');
   if (reactBtn && !reactBtn.dataset.wired) {
     reactBtn.dataset.wired = '1';
@@ -399,7 +408,6 @@ function wireBubbleActions(bubbleNode) {
     });
   }
 
-  // Existing reaction chips — clicking toggles
   bubbleNode.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
     if (chip.dataset.wired) return;
     chip.dataset.wired = '1';
@@ -445,7 +453,6 @@ function openReactionPicker(event, noteId) {
   event.stopPropagation();
   event.preventDefault();
 
-  // Remove any existing picker
   document.querySelectorAll('.reaction-picker').forEach((p) => p.remove());
 
   const picker = document.createElement('div');
@@ -454,7 +461,6 @@ function openReactionPicker(event, noteId) {
     `<button class="reaction-picker-btn" data-emoji="${emoji}">${emoji}</button>`
   ).join('');
 
-  // Position relative to the react button
   const rect = event.currentTarget.getBoundingClientRect();
   picker.style.position = 'fixed';
   picker.style.left = `${Math.max(10, rect.left - 80)}px`;
@@ -462,7 +468,6 @@ function openReactionPicker(event, noteId) {
 
   document.body.appendChild(picker);
 
-  // Wire picker buttons
   picker.querySelectorAll('.reaction-picker-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -473,7 +478,6 @@ function openReactionPicker(event, noteId) {
     });
   });
 
-  // Close on outside click — attach on next tick so current click doesn't trigger it
   setTimeout(() => {
     const closeHandler = (e) => {
       if (!picker.contains(e.target)) {
@@ -514,11 +518,9 @@ function updateBubbleReactions(noteId, reactions) {
   const row = document.querySelector(`.chat-bubble-row[data-note-id="${noteId}"]`);
   if (!row) return;
 
-  // Remove the old reactions bar
   const oldBar = row.querySelector('.chat-reactions-bar');
   if (oldBar) oldBar.remove();
 
-  // Build a new one
   const fake = { id: noteId, reactions };
   const html = renderReactionsBar(fake);
 
@@ -639,6 +641,7 @@ function closeLiveChat() {
 function closeActiveChat() {
   closeLiveChat();
   activeChatDotoriId = null;
+  activeChatName = null;
   activeChatNotes = [];
   activeReplyTo = null;
   activeIsFriend = false;
