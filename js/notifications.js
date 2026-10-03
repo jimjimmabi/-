@@ -8,10 +8,7 @@ let notificationBannerDismissed = false;
 // ---------- Init ----------
 
 function initNotifications() {
-  // Show the permission banner if the user hasn't decided yet
   maybeShowNotificationBanner();
-
-  // Subscribe to all incoming notes globally
   setupGlobalNoteSubscription();
 }
 
@@ -21,7 +18,6 @@ function maybeShowNotificationBanner() {
   const banner = document.getElementById('notification-banner');
   if (!banner) return;
 
-  // Don't show if already decided
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') return;
   if (Notification.permission === 'denied') return;
@@ -65,19 +61,25 @@ function setupGlobalNoteSubscription() {
 
   try {
     notificationChannel = DotoriStorage.subscribeToMyNotes(async (newNote) => {
+      console.log('🌰 Global note received:', newNote);
+
       // Ignore our own messages
       const me = await DotoriStorage.getProfile();
-      if (!me) return;
+      if (!me) {
+        console.warn('No profile yet — skipping notification');
+        return;
+      }
       if (newNote.sender_id === me.id) return;
-
-      // Only care about messages addressed to us
       if (newNote.recipient_id !== me.id) return;
 
-      // Fetch the sender's profile
-      const sender = await DotoriStorage.getProfileByDotoriId(
-        await getSenderDotoriId(newNote.sender_id)
-      );
-      if (!sender) return;
+      // FIXED: use getProfileById directly, no more __ helper
+      const sender = await DotoriStorage.getProfileById(newNote.sender_id);
+      if (!sender) {
+        console.warn('Sender profile not found:', newNote.sender_id);
+        return;
+      }
+
+      console.log('🌰 Toast for:', sender.nickname);
 
       // Update inbox badge
       try {
@@ -86,13 +88,12 @@ function setupGlobalNoteSubscription() {
         if (inboxCount) inboxCount.textContent = count;
       } catch (e) {}
 
-      // Show toast
+      // Toast
       showToast({
         mini_me: sender.mini_me || '🌰',
         title: `${sender.nickname}님의 쪽지`,
         body: truncate(newNote.message, 60),
         onClick: () => {
-          // Open chat with this person
           if (typeof openConversationWith === 'function') {
             openConversationWith(
               sender.dotori_id,
@@ -104,22 +105,10 @@ function setupGlobalNoteSubscription() {
       });
 
       // Browser notification
-      showBrowserNotification(sender.nickname, newNote.message, sender.mini_me || '🌰');
+      showBrowserNotification(sender.nickname, newNote.message);
     });
   } catch (e) {
     console.warn('Global note subscription failed:', e);
-  }
-}
-
-async function getSenderDotoriId(senderId) {
-  // We have sender_id (uuid). We need dotori_id.
-  // Simple approach: query profiles by id.
-  // We use a small helper that queries through the storage API.
-  try {
-    const { data } = await window.DotoriSupabase.__getProfileById(senderId);
-    return data ? data.dotori_id : null;
-  } catch (e) {
-    return null;
   }
 }
 
@@ -127,7 +116,10 @@ async function getSenderDotoriId(senderId) {
 
 function showToast({ mini_me, title, body, onClick }) {
   const container = document.getElementById('toast-container');
-  if (!container) return;
+  if (!container) {
+    console.warn('No toast container');
+    return;
+  }
 
   const toast = document.createElement('div');
   toast.className = 'toast';
@@ -140,13 +132,11 @@ function showToast({ mini_me, title, body, onClick }) {
     <button class="toast-close" aria-label="닫기">✕</button>
   `;
 
-  // Click on toast body → trigger onClick
   toast.querySelector('.toast-main').addEventListener('click', () => {
     if (typeof onClick === 'function') onClick();
     removeToast(toast);
   });
 
-  // Close button
   toast.querySelector('.toast-close').addEventListener('click', (e) => {
     e.stopPropagation();
     removeToast(toast);
@@ -154,12 +144,10 @@ function showToast({ mini_me, title, body, onClick }) {
 
   container.appendChild(toast);
 
-  // Trigger slide-in
   requestAnimationFrame(() => {
     toast.classList.add('visible');
   });
 
-  // Auto-dismiss after 6 seconds
   setTimeout(() => {
     removeToast(toast);
   }, 6000);
@@ -175,7 +163,7 @@ function removeToast(toast) {
 
 // ---------- Browser notification ----------
 
-function showBrowserNotification(senderName, message, emoji) {
+function showBrowserNotification(senderName, message) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
