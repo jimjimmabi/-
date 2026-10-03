@@ -171,7 +171,6 @@ function renderConversationModal(conv) {
 
   const hasVisitBtn = conv.dotori_id && conv.dotori_id !== getMyDotoriId();
 
-  // Friend badge / status
   const friendBadgeHtml = activeIsFriend
     ? `<span class="chat-friend-badge" title="일촌">🌰 일촌</span>`
     : '';
@@ -210,13 +209,16 @@ function renderConversationModal(conv) {
     ]
   );
 
-  // Scroll to bottom
+  // Scroll to bottom + wire up reply/react buttons on existing bubbles
   setTimeout(() => {
     const thread = document.getElementById('chat-thread');
     if (thread) thread.scrollTop = thread.scrollHeight;
 
     const input = document.getElementById('chat-input');
     if (input) input.focus();
+
+    // CRITICAL: attach click handlers to reply/react buttons
+    wireAllBubbles();
   }, 50);
 
   // Wire visit button
@@ -252,7 +254,6 @@ function renderConversationModal(conv) {
 
     try {
       const saved = await DotoriStorage.sendNote(conv.dotori_id, msg, replyToId);
-      // Realtime will pick it up. But optimistic append for instant feedback:
       appendChatBubble({
         id: saved ? saved.id : null,
         message: msg,
@@ -282,7 +283,6 @@ function renderConversationModal(conv) {
 function renderChatBubble(note) {
   const mine = note.direction === 'sent';
 
-  // Reply quote
   let replyQuoteHtml = '';
   if (note.reply_to_id) {
     const parent = activeChatNotes.find((n) => n.id === note.reply_to_id);
@@ -297,7 +297,6 @@ function renderChatBubble(note) {
     }
   }
 
-  // Reactions
   const reactionsHtml = renderReactionsBar(note);
 
   const replyBtnHtml = `
@@ -328,7 +327,6 @@ function renderReactionsBar(note) {
   const reactions = note.reactions || [];
   const myUserId = getMyUserId();
 
-  // Group by emoji
   const grouped = {};
   reactions.forEach((r) => {
     if (!grouped[r.emoji]) grouped[r.emoji] = [];
@@ -361,7 +359,6 @@ function appendChatBubble(note, isOptimistic) {
   if (isOptimistic) {
     newNode.dataset.optimistic = 'true';
     newNode.dataset.message = note.message;
-    // Assign a temp note id so reactions can be attached later
     if (!note.id) {
       const tempId = 'temp-' + Date.now();
       newNode.dataset.noteId = tempId;
@@ -380,7 +377,8 @@ function appendChatBubble(note, isOptimistic) {
 function wireBubbleActions(bubbleNode) {
   // Reply button
   const replyBtn = bubbleNode.querySelector('.chat-reply-btn');
-  if (replyBtn) {
+  if (replyBtn && !replyBtn.dataset.wired) {
+    replyBtn.dataset.wired = '1';
     replyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const noteId = replyBtn.dataset.noteId;
@@ -391,9 +389,11 @@ function wireBubbleActions(bubbleNode) {
 
   // React button
   const reactBtn = bubbleNode.querySelector('.chat-react-btn');
-  if (reactBtn) {
+  if (reactBtn && !reactBtn.dataset.wired) {
+    reactBtn.dataset.wired = '1';
     reactBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       const noteId = reactBtn.dataset.noteId;
       openReactionPicker(e, noteId);
     });
@@ -401,6 +401,8 @@ function wireBubbleActions(bubbleNode) {
 
   // Existing reaction chips — clicking toggles
   bubbleNode.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
+    if (chip.dataset.wired) return;
+    chip.dataset.wired = '1';
     chip.addEventListener('click', async (e) => {
       e.stopPropagation();
       const noteId = chip.dataset.noteId;
@@ -440,6 +442,9 @@ function cancelReply() {
 // ---------- Reaction picker ----------
 
 function openReactionPicker(event, noteId) {
+  event.stopPropagation();
+  event.preventDefault();
+
   // Remove any existing picker
   document.querySelectorAll('.reaction-picker').forEach((p) => p.remove());
 
@@ -453,7 +458,7 @@ function openReactionPicker(event, noteId) {
   const rect = event.currentTarget.getBoundingClientRect();
   picker.style.position = 'fixed';
   picker.style.left = `${Math.max(10, rect.left - 80)}px`;
-  picker.style.top = `${rect.top - 46}px`;
+  picker.style.top = `${Math.max(10, rect.top - 46)}px`;
 
   document.body.appendChild(picker);
 
@@ -461,33 +466,32 @@ function openReactionPicker(event, noteId) {
   picker.querySelectorAll('.reaction-picker-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      e.preventDefault();
       const emoji = btn.dataset.emoji;
       picker.remove();
       await handleReactionToggle(noteId, emoji);
     });
   });
 
-  // Close on outside click
+  // Close on outside click — attach on next tick so current click doesn't trigger it
   setTimeout(() => {
     const closeHandler = (e) => {
       if (!picker.contains(e.target)) {
         picker.remove();
-        document.removeEventListener('click', closeHandler);
+        document.removeEventListener('mousedown', closeHandler);
       }
     };
-    document.addEventListener('click', closeHandler);
-  }, 50);
+    document.addEventListener('mousedown', closeHandler);
+  }, 0);
 }
 
 // ---------- Reaction toggle ----------
 
 async function handleReactionToggle(noteId, emoji) {
-  // Don't react to unsaved optimistic notes
   if (typeof noteId === 'string' && noteId.startsWith('temp-')) return;
 
   try {
     await DotoriStorage.toggleReaction(noteId, emoji);
-    // Realtime will refresh — but do it optimistically too
     await refreshReactionsForNote(noteId);
   } catch (err) {
     console.error('Reaction toggle failed:', err);
@@ -520,8 +524,9 @@ function updateBubbleReactions(noteId, reactions) {
 
   if (html) {
     row.insertAdjacentHTML('beforeend', html);
-    // Rewire chip clicks
     row.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
+      if (chip.dataset.wired) return;
+      chip.dataset.wired = '1';
       chip.addEventListener('click', async (e) => {
         e.stopPropagation();
         await handleReactionToggle(chip.dataset.noteId, chip.dataset.emoji);
@@ -548,12 +553,10 @@ function setupLiveChat(conv) {
         const recipient = await DotoriStorage.getProfileByDotoriId(activeChatDotoriId);
         if (!recipient || newNote.recipient_id !== recipient.id) return;
 
-        // Check if we optimistically displayed this
         const thread = document.getElementById('chat-thread');
         if (thread) {
           const optimistic = thread.querySelector(`[data-optimistic="true"][data-message="${cssEscape(newNote.message)}"]`);
           if (optimistic) {
-            // Convert it to a "real" note — attach the real id
             optimistic.removeAttribute('data-optimistic');
             optimistic.removeAttribute('data-message');
             if (newNote.id) {
@@ -563,7 +566,6 @@ function setupLiveChat(conv) {
               if (replyBtn) replyBtn.dataset.noteId = newNote.id;
               if (reactBtn) reactBtn.dataset.noteId = newNote.id;
 
-              // Update local store
               const existing = activeChatNotes.find((n) => n.id === newNote.id);
               if (!existing) {
                 activeChatNotes.push({
@@ -591,7 +593,6 @@ function setupLiveChat(conv) {
         try { await DotoriStorage.markNoteRead(newNote.id); } catch (e) {}
       }
 
-      // Update inbox count
       try {
         const count = await DotoriStorage.getUnreadCount();
         const inboxCount = document.getElementById('inbox-count');
@@ -614,7 +615,6 @@ function setupLiveReactions(conv) {
       const row = payload.new || payload.old;
       if (!row || !row.note_id) return;
 
-      // Is this note in our current conversation?
       const note = activeChatNotes.find((n) => n.id === row.note_id);
       if (!note) return;
 
