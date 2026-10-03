@@ -59,6 +59,8 @@ function initTabs() {
       if (target === 'guestbook') renderGuestbookTab();
       if (target === 'taste') initTasteTab();
       if (target === 'album') initPhotoTab();
+      if (target === 'room') initMiniRoomTab();
+      if (target === 'plaza') initSquareTab();
     });
   });
 }
@@ -94,6 +96,7 @@ async function renderHome(profile) {
   if (totalEl) totalEl.textContent = visits.total;
 
   await renderGuestbookPreview();
+  await renderRoomPreviewHome(profile);
 
   const room = await DotoriStorage.getRoom();
   const bgmTitle = document.getElementById('bgm-title');
@@ -125,6 +128,24 @@ async function renderHome(profile) {
       }
     }
   } catch (e) { console.warn('Friend request badge failed:', e); }
+}
+
+// ---------- Home: Mini-Room preview ----------
+
+async function renderRoomPreviewHome(profile) {
+  const container = document.getElementById('home-room-preview');
+  if (!container) return;
+
+  let room = null;
+  try {
+    room = await DotoriStorage.getRoom();
+  } catch (e) {
+    console.warn('Room load failed:', e);
+  }
+
+  if (typeof renderRoomPreview === 'function') {
+    renderRoomPreview(container, room, profile, { compact: true });
+  }
 }
 
 function renderTastePreview(profile) {
@@ -283,6 +304,13 @@ function initHeaderButtons() {
     if (tasteTab) tasteTab.click();
   });
 
+  // Home: Mini-Room button
+  const homeRoomGoBtn = document.getElementById('home-room-go-btn');
+  if (homeRoomGoBtn) homeRoomGoBtn.addEventListener('click', () => {
+    const roomTab = document.querySelector('.site-tabs .tab[data-tab="room"]');
+    if (roomTab) roomTab.click();
+  });
+
   const notifEnableBtn = document.getElementById('notif-enable-btn');
   if (notifEnableBtn) notifEnableBtn.addEventListener('click', requestNotificationPermission);
 
@@ -396,6 +424,17 @@ function initApp(profile) {
   initFriendsDrawer();
   initRealtimeSubscriptions();
   initNotifications();
+
+  // Pre-render the mini-room so it's not stuck on "Loading..."
+  // We defer it a tick so the DOM is fully ready.
+  setTimeout(() => {
+    if (typeof initMiniRoomTab === 'function') {
+      initMiniRoomTab();
+    }
+    if (typeof initSquareTab === 'function') {
+      initSquareTab();
+    }
+  }, 100);
 }
 
 // ---------- Visit Modal ----------
@@ -470,6 +509,11 @@ async function openVisitModal(profile) {
       </div>
 
       <div class="visit-section">
+        <div class="visit-section-title">🏠 미니룸</div>
+        <div class="visit-room" id="visit-room-preview"></div>
+      </div>
+
+      <div class="visit-section">
         <div class="visit-section-title">🌱 취향</div>
         ${tasteHtml}
       </div>
@@ -494,6 +538,19 @@ async function openVisitModal(profile) {
       { label: '닫기', onClick: closeModal }
     ]
   );
+
+  // Render their mini-room into the visit modal
+  setTimeout(async () => {
+    const roomContainer = document.getElementById('visit-room-preview');
+    if (roomContainer && typeof renderRoomPreview === 'function') {
+      try {
+        const theirRoom = await DotoriStorage.getRoomByDotoriId(profile.dotori_id);
+        renderRoomPreview(roomContainer, theirRoom, profile, { compact: true });
+      } catch (e) {
+        console.warn('Visit room load failed:', e);
+      }
+    }
+  }, 60);
 
   setTimeout(() => {
     const noteBtn = document.getElementById('visit-note-btn');

@@ -1,598 +1,393 @@
 // ============================================
-// 도토리숲 — Main App (Supabase-ready)
+// 도토리숲 — 미니룸 (Mini-Room Editor)
 // ============================================
 
-let friendRequestChannel = null;
+const ROOM_COLS = 8;
+const ROOM_ROWS = 8;
 
-// ---------- Modal ----------
+const FURNITURE_PALETTE = [
+  { emoji: '🛏️', name: '침대' },
+  { emoji: '🪑', name: '의자' },
+  { emoji: '🖥️', name: '컴퓨터' },
+  { emoji: '📚', name: '책' },
+  { emoji: '🪴', name: '화분' },
+  { emoji: '💡', name: '스탠드' },
+  { emoji: '🖼️', name: '그림' },
+  { emoji: '🕰️', name: '시계' },
+  { emoji: '🎸', name: '기타' },
+  { emoji: '☕', name: '커피' },
+  { emoji: '🎧', name: '헤드폰' },
+  { emoji: '📷', name: '카메라' },
+  { emoji: '🧸', name: '곰인형' },
+  { emoji: '🌸', name: '꽃' },
+  { emoji: '🍰', name: '케이크' },
+  { emoji: '🎂', name: '생일' },
+  { emoji: '🎈', name: '풍선' },
+  { emoji: '⭐', name: '별' },
+  { emoji: '🌈', name: '무지개' },
+  { emoji: '🍀', name: '클로버' }
+];
 
-function showModal(title, bodyHtml, buttons) {
-  const overlay = document.getElementById('modal-overlay');
-  const titleEl = document.getElementById('modal-title');
-  const bodyEl = document.getElementById('modal-body');
-  const footerEl = document.getElementById('modal-footer');
-  const closeBtn = document.getElementById('modal-close');
+const WALLPAPER_OPTIONS = [
+  { id: 'default', name: '기본', css: 'linear-gradient(to bottom, #FFF8F0, #FFEEDD)' },
+  { id: 'sky', name: '하늘', css: 'linear-gradient(to bottom, #EAF6FF, #D4E8F8)' },
+  { id: 'pink', name: '분홍', css: 'linear-gradient(to bottom, #FFE8F0, #FFD4E8)' },
+  { id: 'mint', name: '민트', css: 'linear-gradient(to bottom, #E8F6EE, #D4EDE0)' },
+  { id: 'lavender', name: '라벤더', css: 'linear-gradient(to bottom, #F0EAF8, #E0D4F0)' },
+  { id: 'sunset', name: '노을', css: 'linear-gradient(to bottom, #FFE8D4, #FFC8A8)' },
+  { id: 'night', name: '밤', css: 'linear-gradient(to bottom, #2A2A4A, #1A1A2E)' }
+];
 
-  titleEl.textContent = title;
-  bodyEl.innerHTML = bodyHtml;
-  footerEl.innerHTML = '';
+const FLOOR_OPTIONS = [
+  { id: 'default', name: '나무', css: '#C68B4A' },
+  { id: 'cream', name: '크림', css: '#F0E4D4' },
+  { id: 'pink', name: '핑크', css: '#FFD4E8' },
+  { id: 'mint', name: '민트', css: '#D4EDE0' }
+];
 
-  buttons.forEach((btn) => {
-    const el = document.createElement('button');
-    el.textContent = btn.label;
-    el.className = btn.primary ? 'small-btn primary' : 'small-btn';
-    el.style.marginLeft = '6px';
-    el.addEventListener('click', btn.onClick);
-    footerEl.appendChild(el);
-  });
+let roomState = {
+  layout: {},
+  wallpaper: 'default',
+  floor: 'default',
+  miniMePosition: { row: 4, col: 4 }
+};
 
-  closeBtn.onclick = () => {
-    if (typeof closeLiveChat === 'function') closeLiveChat();
-    closeModal();
-  };
+let roomSelectedFurniture = null;
+let roomCurrentProfile = null;
+let roomReadOnly = false;
 
-  overlay.classList.remove('hidden');
-}
+// ---------- Init: my room ----------
 
-function closeModal() {
-  document.getElementById('modal-overlay').classList.add('hidden');
-}
-
-// ---------- Tab switching ----------
-
-function initTabs() {
-  const tabs = document.querySelectorAll('.site-tabs .tab');
-  const contents = document.querySelectorAll('.tab-content');
-
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', (e) => {
-      e.preventDefault();
-      const target = tab.dataset.tab;
-
-      tabs.forEach((t) => t.classList.remove('active'));
-      contents.forEach((c) => c.classList.remove('active'));
-
-      tab.classList.add('active');
-      const targetEl = document.getElementById('tab-' + target);
-      if (targetEl) targetEl.classList.add('active');
-
-      if (target === 'guestbook') renderGuestbookTab();
-      if (target === 'taste') initTasteTab();
-      if (target === 'album') initPhotoTab();
-      if (target === 'room') initMiniRoomTab();
-      if (target === 'plaza') initSquareTab();
-    });
-  });
-}
-
-// ---------- Home rendering ----------
-
-async function renderHome(profile) {
-  if (!profile) profile = await DotoriStorage.getProfile();
-  if (!profile) return;
-
-  const miniMeBox = document.getElementById('mini-me-box');
-  if (miniMeBox) {
-    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
-    miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
-  }
-
-  const nameEl = document.getElementById('mini-me-name');
-  if (nameEl) nameEl.textContent = profile.nickname;
-
-  const statusEl = document.getElementById('mini-me-status');
-  const statusDisplay = document.getElementById('status-display');
-  const status = profile.status_message || '오늘도 화이팅 ♡';
-  if (statusEl) statusEl.textContent = status;
-  if (statusDisplay) statusDisplay.textContent = status;
-
-  const dateEl = document.getElementById('header-date');
-  if (dateEl) dateEl.textContent = '2008년 3월 14일';
-
-  const visits = await DotoriStorage.bumpVisit();
-  const todayEl = document.getElementById('counter-today');
-  const totalEl = document.getElementById('counter-total');
-  if (todayEl) todayEl.textContent = visits.todayCount;
-  if (totalEl) totalEl.textContent = visits.total;
-
-  await renderGuestbookPreview();
-  await renderRoomPreviewHome(profile);
-
-  const room = await DotoriStorage.getRoom();
-  const bgmTitle = document.getElementById('bgm-title');
-  if (bgmTitle) bgmTitle.textContent = room.bgm_choice || '— 곡을 선택해주세요 —';
-
-  renderTastePreview(profile);
-
-  try {
-    const ilchon = await DotoriStorage.getIlchon();
-    const ilchonEl = document.getElementById('ilchon-count');
-    if (ilchonEl) ilchonEl.textContent = ilchon.length;
-  } catch (e) { console.warn('Ilchon load failed:', e); }
-
-  try {
-    const count = await DotoriStorage.getUnreadCount();
-    const inboxCount = document.getElementById('inbox-count');
-    if (inboxCount) inboxCount.textContent = count;
-  } catch (e) { console.warn('Inbox count failed:', e); }
-
-  try {
-    const requests = await DotoriStorage.getPendingRequests();
-    const badge = document.getElementById('friends-badge');
-    if (badge) {
-      if (requests.length > 0) {
-        badge.textContent = requests.length;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    }
-  } catch (e) { console.warn('Friend request badge failed:', e); }
-}
-
-// ---------- Home: Mini-Room preview ----------
-
-async function renderRoomPreviewHome(profile) {
-  const container = document.getElementById('home-room-preview');
+async function initMiniRoomTab() {
+  const container = document.getElementById('tab-room');
   if (!container) return;
 
-  let room = null;
+  roomReadOnly = false;
+  roomSelectedFurniture = null;
+
+  try {
+    roomCurrentProfile = await DotoriStorage.getProfile();
+  } catch (e) {
+    console.error('Profile load failed:', e);
+  }
+
+  let room = { layout: {}, wallpaper: 'default', floor: 'default' };
   try {
     room = await DotoriStorage.getRoom();
   } catch (e) {
     console.warn('Room load failed:', e);
   }
 
-  if (typeof renderRoomPreview === 'function') {
-    renderRoomPreview(container, room, profile, { compact: true });
+  const layout = (room && room.layout) || {};
+  const miniMePosition = layout.miniMe || { row: 4, col: 4 };
+  const cleanLayout = { ...layout };
+  delete cleanLayout.miniMe;
+
+  roomState = {
+    layout: cleanLayout,
+    wallpaper: (room && room.wallpaper) || 'default',
+    floor: (room && room.floor) || 'default',
+    miniMePosition
+  };
+
+  renderMiniRoomTab(container);
+}
+
+function renderMiniRoomTab(container) {
+  container.innerHTML = `
+    <div class="miniroom-page">
+      <div class="miniroom-header">
+        <h2>🏠 미니룸</h2>
+        <p class="miniroom-purpose">나만의 작은 방을 꾸며보세요.</p>
+      </div>
+
+      <div class="miniroom-layout">
+        <div class="miniroom-stage">
+          <div class="miniroom-grid" id="miniroom-grid"></div>
+        </div>
+
+        <div class="miniroom-toolbox">
+          <div class="miniroom-tool-section">
+            <div class="miniroom-tool-title">가구</div>
+            <div class="miniroom-palette" id="miniroom-palette"></div>
+            <p class="miniroom-hint">가구를 선택한 다음 방의 칸을 클릭하세요.<br>같은 가구를 다시 누르면 취소됩니다.</p>
+          </div>
+
+          <div class="miniroom-tool-section">
+            <div class="miniroom-tool-title">벽지</div>
+            <div class="miniroom-wallpaper-options" id="miniroom-wallpaper"></div>
+          </div>
+
+          <div class="miniroom-tool-section">
+            <div class="miniroom-tool-title">바닥</div>
+            <div class="miniroom-floor-options" id="miniroom-floor"></div>
+          </div>
+
+          <div class="miniroom-tool-section">
+            <button id="miniroom-save-btn" class="small-btn primary" style="width:100%;">
+              💾 저장하기
+            </button>
+            <button id="miniroom-clear-btn" class="small-btn" style="width:100%; margin-top:6px;">
+              🗑️ 모두 지우기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  renderRoomGrid();
+  renderFurniturePalette();
+  renderWallpaperOptions();
+  renderFloorOptions();
+  wireMiniRoomButtons();
+}
+
+function renderRoomGrid() {
+  const grid = document.getElementById('miniroom-grid');
+  if (!grid) return;
+
+  const wallpaper = WALLPAPER_OPTIONS.find((w) => w.id === roomState.wallpaper) || WALLPAPER_OPTIONS[0];
+  grid.style.background = wallpaper.css;
+
+  const floor = FLOOR_OPTIONS.find((f) => f.id === roomState.floor) || FLOOR_OPTIONS[0];
+  const floorColor = floor.css;
+
+  grid.innerHTML = '';
+
+  for (let row = 0; row < ROOM_ROWS; row++) {
+    for (let col = 0; col < ROOM_COLS; col++) {
+      const cell = document.createElement('div');
+      cell.className = 'miniroom-cell';
+      cell.dataset.row = row;
+      cell.dataset.col = col;
+
+      if (row >= ROOM_ROWS - 2) {
+        cell.style.background = floorColor;
+      }
+
+      const key = `${row}-${col}`;
+      const item = roomState.layout[key];
+      if (item && item.emoji) {
+        const furniture = document.createElement('span');
+        furniture.className = 'miniroom-furniture';
+        furniture.textContent = item.emoji;
+        cell.appendChild(furniture);
+      }
+
+      if (roomState.miniMePosition.row === row && roomState.miniMePosition.col === col) {
+        const miniMe = document.createElement('span');
+        miniMe.className = 'miniroom-mini-me';
+        miniMe.textContent = (roomCurrentProfile && roomCurrentProfile.mini_me) || '🌰';
+        cell.appendChild(miniMe);
+      }
+
+      cell.addEventListener('click', () => handleCellClick(row, col));
+      grid.appendChild(cell);
+    }
   }
 }
 
-function renderTastePreview(profile) {
-  const el = document.getElementById('taste-preview');
+function handleCellClick(row, col) {
+  if (roomReadOnly) return;
+
+  const key = `${row}-${col}`;
+
+  if (roomState.miniMePosition.row === row && roomState.miniMePosition.col === col) {
+    return;
+  }
+
+  if (!roomSelectedFurniture) {
+    if (roomState.layout[key]) {
+      delete roomState.layout[key];
+      renderRoomGrid();
+    }
+    return;
+  }
+
+  roomState.layout[key] = {
+    emoji: roomSelectedFurniture.emoji,
+    name: roomSelectedFurniture.name
+  };
+
+  renderRoomGrid();
+}
+
+function renderFurniturePalette() {
+  const palette = document.getElementById('miniroom-palette');
+  if (!palette) return;
+
+  palette.innerHTML = '';
+  FURNITURE_PALETTE.forEach((item) => {
+    const btn = document.createElement('button');
+    btn.className = 'miniroom-furniture-btn';
+    btn.title = item.name;
+    btn.textContent = item.emoji;
+
+    if (roomSelectedFurniture && roomSelectedFurniture.emoji === item.emoji) {
+      btn.classList.add('active');
+    }
+
+    btn.addEventListener('click', () => {
+      if (roomSelectedFurniture && roomSelectedFurniture.emoji === item.emoji) {
+        roomSelectedFurniture = null;
+      } else {
+        roomSelectedFurniture = item;
+      }
+      renderFurniturePalette();
+    });
+
+    palette.appendChild(btn);
+  });
+}
+
+function renderWallpaperOptions() {
+  const el = document.getElementById('miniroom-wallpaper');
   if (!el) return;
 
-  const t = profile.tastes || {};
-  const hasAny = (t.interests && t.interests.length) +
-                 (t.music && t.music.length) +
-                 (t.mood && t.mood.length) +
-                 (t.favorites ? 1 : 0) +
-                 (t.needs ? 1 : 0);
+  el.innerHTML = '';
+  WALLPAPER_OPTIONS.forEach((w) => {
+    const btn = document.createElement('button');
+    btn.className = 'miniroom-wallpaper-btn';
+    btn.title = w.name;
+    btn.style.background = w.css;
 
-  if (!hasAny) {
-    el.innerHTML = `<p class="taste-preview-text">아직 취향을 입력하지 않았어요.<br>당신을 소개해주세요.</p>`;
-    return;
-  }
+    if (roomState.wallpaper === w.id) btn.classList.add('active');
 
-  const parts = [];
-  if (t.interests && t.interests.length) parts.push(t.interests.slice(0, 3).join(' · '));
-  if (t.music && t.music.length) parts.push(t.music.slice(0, 2).join(' · '));
-  if (t.mood && t.mood.length) parts.push(t.mood.slice(0, 2).join(' · '));
+    btn.addEventListener('click', () => {
+      roomState.wallpaper = w.id;
+      renderWallpaperOptions();
+      renderRoomGrid();
+    });
 
-  el.innerHTML = `
-    <p class="taste-preview-text">${parts.join('<br>')}</p>
-    ${t.needs ? `<p class="taste-needs">"${escapeHtml(t.needs)}"</p>` : ''}
-  `;
-}
-
-async function renderGuestbookPreview(ownerDotoriId) {
-  const preview = document.getElementById('guestbook-preview');
-  if (!preview) return;
-
-  let entries = [];
-  try {
-    entries = await DotoriStorage.getGuestbook(ownerDotoriId);
-  } catch (e) { console.warn('Guestbook load failed:', e); }
-
-  if (!Array.isArray(entries) || entries.length === 0) {
-    preview.innerHTML = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
-    return;
-  }
-
-  preview.innerHTML = '';
-  entries.slice(0, 3).forEach((entry) => {
-    const div = document.createElement('div');
-    div.className = 'guestbook-entry-mini';
-    div.innerHTML = `
-      <strong>${escapeHtml(entry.author_name || '익명')}</strong>
-      <span class="time">${formatTime(entry.created_at)}</span>
-      <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
-      ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
-    `;
-    preview.appendChild(div);
+    el.appendChild(btn);
   });
 }
 
-async function renderGuestbookTab(ownerDotoriId) {
-  const container = document.querySelector('#tab-guestbook .placeholder-panel');
+function renderFloorOptions() {
+  const el = document.getElementById('miniroom-floor');
+  if (!el) return;
+
+  el.innerHTML = '';
+  FLOOR_OPTIONS.forEach((f) => {
+    const btn = document.createElement('button');
+    btn.className = 'miniroom-floor-btn';
+    btn.title = f.name;
+    btn.style.background = f.css;
+
+    if (roomState.floor === f.id) btn.classList.add('active');
+
+    btn.addEventListener('click', () => {
+      roomState.floor = f.id;
+      renderFloorOptions();
+      renderRoomGrid();
+    });
+
+    el.appendChild(btn);
+  });
+}
+
+function wireMiniRoomButtons() {
+  const saveBtn = document.getElementById('miniroom-save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', saveMiniRoom);
+
+  const clearBtn = document.getElementById('miniroom-clear-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (!confirm('방을 모두 비울까요?')) return;
+      roomState.layout = {};
+      renderRoomGrid();
+    });
+  }
+}
+
+async function saveMiniRoom() {
+  const saveBtn = document.getElementById('miniroom-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = '저장 중...';
+  }
+
+  const layoutToSave = { ...roomState.layout };
+  layoutToSave.miniMe = roomState.miniMePosition;
+
+  try {
+    const ok = await DotoriStorage.saveMyRoom({
+      layout: layoutToSave,
+      wallpaper: roomState.wallpaper,
+      floor: roomState.floor,
+      bgm_choice: null
+    });
+
+    if (ok) {
+      if (typeof showToast === 'function') {
+        showToast({
+          mini_me: '🌰',
+          title: '저장했어요',
+          body: '미니룸이 잘 저장되었어요.'
+        });
+      } else {
+        alert('미니룸이 저장되었어요!');
+      }
+    } else {
+      alert('저장할 수 없어요');
+    }
+  } catch (e) {
+    console.error('Save failed:', e);
+    alert('저장 실패: ' + (e.message || ''));
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 저장하기';
+    }
+  }
+}
+
+// ---------- Read-only preview (for home + visit modal) ----------
+
+function renderRoomPreview(container, room, profile, options = {}) {
   if (!container) return;
 
-  let entries = [];
-  try {
-    entries = await DotoriStorage.getGuestbook(ownerDotoriId);
-  } catch (e) { console.warn('Guestbook tab load failed:', e); }
+  const layout = (room && room.layout) || {};
+  const wallpaperId = (room && room.wallpaper) || 'default';
+  const floorId = (room && room.floor) || 'default';
+  const miniMePosition = layout.miniMe || { row: 4, col: 4 };
 
-  container.innerHTML = `
-    <h2>방명록</h2>
-    <button id="guestbook-write-btn-full" class="small-btn" style="margin:10px 0;">방명록 남기기</button>
-    <div id="guestbook-full-list" style="text-align:left;"></div>
-  `;
+  const wallpaper = WALLPAPER_OPTIONS.find((w) => w.id === wallpaperId) || WALLPAPER_OPTIONS[0];
+  const floor = FLOOR_OPTIONS.find((f) => f.id === floorId) || FLOOR_OPTIONS[0];
 
-  const list = document.getElementById('guestbook-full-list');
-  if (!Array.isArray(entries) || entries.length === 0) {
-    list.innerHTML = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
-  } else {
-    entries.forEach((entry) => {
-      const div = document.createElement('div');
-      div.className = 'guestbook-entry-mini';
-      div.style.padding = '10px 0';
-      div.style.borderBottom = '1px solid #EEE';
-      div.innerHTML = `
-        <strong>${escapeHtml(entry.author_name || '익명')}</strong>
-        <span class="time">${formatDate(entry.created_at)}</span>
-        <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
-        ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
-      `;
-      list.appendChild(div);
-    });
-  }
+  const sizeClass = options.compact ? 'miniroom-grid compact' : 'miniroom-grid';
 
-  const writeBtn = document.getElementById('guestbook-write-btn-full');
-  if (writeBtn) writeBtn.addEventListener('click', () => openGuestbookWriter(ownerDotoriId));
-}
+  container.innerHTML = '';
+  container.className = sizeClass;
+  container.style.background = wallpaper.css;
 
-// ---------- Status editing ----------
+  for (let row = 0; row < ROOM_ROWS; row++) {
+    for (let col = 0; col < ROOM_COLS; col++) {
+      const cell = document.createElement('div');
+      cell.className = 'miniroom-cell';
 
-function initStatusEdit() {
-  const editBtn = document.getElementById('status-edit-btn');
-  if (!editBtn) return;
-
-  editBtn.addEventListener('click', async () => {
-    const profile = await DotoriStorage.getProfile();
-    const current = profile.status_message || '';
-
-    showModal('상태 메시지 수정',
-      `<input type="text" id="status-input" maxlength="40" value="${escapeHtml(current)}"
-        class="editor-input">`,
-      [
-        { label: '취소', onClick: closeModal },
-        { label: '저장', primary: true, onClick: async () => {
-          const input = document.getElementById('status-input');
-          const value = input.value.trim() || '오늘도 화이팅 ♡';
-          await DotoriStorage.updateProfile({ status_message: value });
-          closeModal();
-          const updated = await DotoriStorage.getProfile();
-          await renderHome(updated);
-        }}
-      ]
-    );
-
-    setTimeout(() => {
-      const input = document.getElementById('status-input');
-      if (input) input.focus();
-    }, 50);
-  });
-}
-
-// ---------- Header buttons ----------
-
-function initHeaderButtons() {
-  const profileEditBtn = document.getElementById('profile-edit-btn');
-  if (profileEditBtn) profileEditBtn.addEventListener('click', openProfileEditor);
-
-  const tasteEditBtn = document.getElementById('taste-edit-btn');
-  if (tasteEditBtn) tasteEditBtn.addEventListener('click', openTasteEditor);
-
-  const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
-  if (guestbookWriteBtn) guestbookWriteBtn.addEventListener('click', () => openGuestbookWriter());
-
-  const settingsLink = document.getElementById('settings-link');
-  if (settingsLink) settingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    openSettings();
-  });
-
-  const inboxLink = document.getElementById('inbox-link');
-  if (inboxLink) inboxLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    openInbox();
-  });
-
-  const tasteGoBtn = document.getElementById('taste-go-btn');
-  if (tasteGoBtn) tasteGoBtn.addEventListener('click', () => {
-    const tasteTab = document.querySelector('.site-tabs .tab[data-tab="taste"]');
-    if (tasteTab) tasteTab.click();
-  });
-
-  const notifEnableBtn = document.getElementById('notif-enable-btn');
-  if (notifEnableBtn) notifEnableBtn.addEventListener('click', requestNotificationPermission);
-
-  const notifDismissBtn = document.getElementById('notif-dismiss-btn');
-  if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
-}
-
-// ---------- BGM ----------
-
-function initBGM() {
-  const playBtn = document.getElementById('bgm-play-btn');
-  const selectBtn = document.getElementById('bgm-select-btn');
-
-  if (playBtn) playBtn.addEventListener('click', () => {
-    showModal('BGM', 'BGM 기능은 나중에 추가됩니다.', [
-      { label: '확인', primary: true, onClick: closeModal }
-    ]);
-  });
-
-  if (selectBtn) selectBtn.addEventListener('click', () => {
-    showModal('BGM 설정', 'BGM 목록은 나중에 추가됩니다.', [
-      { label: '확인', primary: true, onClick: closeModal }
-    ]);
-  });
-}
-
-// ---------- Time Capsule ----------
-
-function initTimeCapsule() {
-  const link = document.getElementById('time-capsule-link');
-  if (!link) return;
-
-  link.addEventListener('click', () => {
-    showModal('📼 저장된 시간',
-      `이 페이지는 2008년 3월 14일에 저장되었습니다.<br><br>
-      <span style="color:#888; font-size:11px;">시간 여행 기능은 나중에 완성됩니다.</span>`,
-      [{ label: '확인', primary: true, onClick: closeModal }]
-    );
-  });
-}
-
-// ---------- Utilities ----------
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function formatTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return hh + ':' + mm;
-}
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}.${mm}.${dd}`;
-}
-
-// ---------- Realtime for friend requests ----------
-
-function initRealtimeSubscriptions() {
-  try {
-    friendRequestChannel = DotoriStorage.subscribeToFriendRequests(async () => {
-      try {
-        const requests = await DotoriStorage.getPendingRequests();
-        const badge = document.getElementById('friends-badge');
-        if (badge) {
-          if (requests.length > 0) {
-            badge.textContent = requests.length;
-            badge.classList.remove('hidden');
-          } else {
-            badge.classList.add('hidden');
-          }
-        }
-      } catch (e) {}
-    });
-  } catch (e) {
-    console.warn('Realtime subscribe failed:', e);
-  }
-}
-
-// ---------- Init ----------
-
-function initApp(profile) {
-  const oldBanner = document.getElementById('visit-banner');
-  if (oldBanner) oldBanner.remove();
-
-  ['profile-edit-btn', 'status-edit-btn', 'taste-edit-btn', 'taste-go-btn'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = '';
-  });
-
-  initTabs();
-  renderHome(profile);
-  initStatusEdit();
-  initBGM();
-  initHeaderButtons();
-  initTimeCapsule();
-  initFriendsDrawer();
-  initRealtimeSubscriptions();
-  initNotifications();
-}
-
-// ---------- Visit Modal ----------
-
-async function openVisitModal(profile) {
-  const t = profile.tastes || {};
-  const parts = [];
-  if (t.interests && t.interests.length) parts.push(t.interests.slice(0, 3).join(' · '));
-  if (t.music && t.music.length) parts.push(t.music.slice(0, 2).join(' · '));
-  if (t.mood && t.mood.length) parts.push(t.mood.slice(0, 2).join(' · '));
-
-  const tasteHtml = parts.length
-    ? `<p class="taste-preview-text">${parts.join('<br>')}</p>${t.needs ? `<p class="taste-needs">"${escapeHtml(t.needs)}"</p>` : ''}`
-    : `<p class="taste-preview-text">아직 취향을 입력하지 않았어요.</p>`;
-
-  let guestbookHtml = '<p class="empty-message">아직 방명록이 비어있어요.</p>';
-  try {
-    const entries = await DotoriStorage.getGuestbook(profile.dotori_id);
-    if (Array.isArray(entries) && entries.length > 0) {
-      guestbookHtml = entries.slice(0, 5).map((entry) => `
-        <div class="guestbook-entry-mini">
-          <strong>${escapeHtml(entry.author_name || '익명')}</strong>
-          <span class="time">${formatTime(entry.created_at)}</span>
-          <div class="msg">${entry.is_secret ? '🔒 비밀글입니다' : escapeHtml(entry.message)}</div>
-          ${entry.reply ? `<div class="reply">↳ ${escapeHtml(entry.reply)}</div>` : ''}
-        </div>
-      `).join('');
-    }
-  } catch (e) {}
-
-  let photosHtml = '<p class="empty-message">아직 사진이 없어요.</p>';
-  try {
-    const photos = await DotoriStorage.getPhotosByDotoriId(profile.dotori_id);
-    if (Array.isArray(photos) && photos.length > 0) {
-      photosHtml = `<div class="visit-photo-grid">${photos.slice(0, 6).map((p) => `
-        <div class="visit-photo-item">
-          <img src="${p.image_url}" alt="" class="visit-photo-img" loading="lazy">
-          ${p.caption ? `<div class="visit-photo-caption">${escapeHtml(p.caption)}</div>` : ''}
-        </div>
-      `).join('')}</div>`;
-    }
-  } catch (e) {}
-
-  let alreadyFriends = false;
-  let alreadyPending = false;
-  try {
-    alreadyFriends = await DotoriStorage.isIlchon(profile.dotori_id);
-    if (!alreadyFriends) {
-      alreadyPending = await DotoriStorage.hasPendingRequestTo(profile.dotori_id);
-    }
-  } catch (e) {}
-
-  let friendBtnHtml = '';
-  if (alreadyFriends) {
-    friendBtnHtml = `<button class="small-btn" disabled style="opacity:0.55; cursor:default;">이미 일촌이에요 ✓</button>`;
-  } else if (alreadyPending) {
-    friendBtnHtml = `<button class="small-btn" disabled style="opacity:0.55; cursor:default;">신청함</button>`;
-  } else {
-    friendBtnHtml = `<button class="small-btn" id="visit-friend-btn">일촌 신청</button>`;
-  }
-
-  showModal(`🌰 ${profile.nickname}님의 숲`,
-    `<div class="visit-modal">
-      <div class="visit-modal-header">
-        <div class="visit-mini-me" style="background:${profile.mini_me_bg || '#EAF6FF'};">
-          ${profile.mini_me || '🌰'}
-        </div>
-        <div class="visit-info">
-          <div class="visit-name">${escapeHtml(profile.nickname)}</div>
-          <div class="visit-status">${escapeHtml(profile.status_message || '')}</div>
-        </div>
-      </div>
-
-      <div class="visit-section">
-        <div class="visit-section-title">🏠 미니룸</div>
-        <div class="visit-room" id="visit-room-preview"></div>
-      </div>
-
-      <div class="visit-section">
-        <div class="visit-section-title">🌱 취향</div>
-        ${tasteHtml}
-      </div>
-
-      <div class="visit-section">
-        <div class="visit-section-title">📷 사진첩</div>
-        <div class="visit-photos">${photosHtml}</div>
-      </div>
-
-      <div class="visit-section">
-        <div class="visit-section-title">📖 방명록</div>
-        <div class="visit-guestbook">${guestbookHtml}</div>
-      </div>
-
-      <div class="visit-actions">
-        <button class="small-btn primary" id="visit-note-btn">쪽지 보내기</button>
-        ${friendBtnHtml}
-        <button class="small-btn" id="visit-gb-btn">방명록 남기기</button>
-      </div>
-    </div>`,
-    [
-      { label: '닫기', onClick: closeModal }
-    ]
-  );
-
-  // Load their mini-room into the modal
-  setTimeout(async () => {
-    const roomContainer = document.getElementById('visit-room-preview');
-    if (roomContainer && typeof renderRoomPreview === 'function') {
-      try {
-        const theirRoom = await DotoriStorage.getRoomByDotoriId(profile.dotori_id);
-        renderRoomPreview(roomContainer, theirRoom, profile, { compact: true });
-      } catch (e) {
-        console.warn('Visit room load failed:', e);
+      if (row >= ROOM_ROWS - 2) {
+        cell.style.background = floor.css;
       }
-    }
-  }, 60);
 
-  setTimeout(() => {
-    const noteBtn = document.getElementById('visit-note-btn');
-    if (noteBtn) {
-      noteBtn.addEventListener('click', () => {
-        closeModal();
-        openNoteWriter(profile.dotori_id, profile.nickname);
-      });
-    }
+      const key = `${row}-${col}`;
+      const item = layout[key];
+      if (item && item.emoji) {
+        const furniture = document.createElement('span');
+        furniture.className = 'miniroom-furniture';
+        furniture.textContent = item.emoji;
+        cell.appendChild(furniture);
+      }
 
-    const friendBtn = document.getElementById('visit-friend-btn');
-    if (friendBtn) {
-      friendBtn.addEventListener('click', async () => {
-        try {
-          await DotoriStorage.sendFriendRequest(profile.dotori_id);
-          closeModal();
-          showModal('🌰 일촌 신청을 보냈어요',
-            `${escapeHtml(profile.nickname)}님에게 일촌 신청이 전해졌어요.<br><br>
-            <span style="color:#888; font-size:11px;">수락하면 서로의 일촌이 됩니다.</span>`,
-            [{ label: '확인', primary: true, onClick: closeModal }]
-          );
-        } catch (err) {
-          alert(err.message || '신청할 수 없어요');
-        }
-      });
-    }
+      if (miniMePosition.row === row && miniMePosition.col === col) {
+        const miniMe = document.createElement('span');
+        miniMe.className = 'miniroom-mini-me';
+        miniMe.textContent = (profile && profile.mini_me) || '🌰';
+        cell.appendChild(miniMe);
+      }
 
-    const gbBtn = document.getElementById('visit-gb-btn');
-    if (gbBtn) {
-      gbBtn.addEventListener('click', () => {
-        closeModal();
-        openGuestbookWriter(profile.dotori_id);
-      });
+      container.appendChild(cell);
     }
-
-    document.querySelectorAll('.visit-photo-img').forEach((img) => {
-      img.addEventListener('click', () => {
-        showModal('📷 사진',
-          `<div class="photo-lightbox">
-            <img src="${img.src}" alt="" class="photo-lightbox-img">
-          </div>`,
-          [{ label: '닫기', primary: true, onClick: closeModal }]
-        );
-      });
-    });
-  }, 50);
+  }
 }
-
-// ---------- Boot ----------
-
-window.addEventListener('DOMContentLoaded', () => {
-  initAuth();
-});
-
-window.initApp = initApp;
-window.openVisitModal = openVisitModal;
-window.showModal = showModal;
-window.closeModal = closeModal;
-window.renderHome = renderHome;
-window.renderGuestbookTab = renderGuestbookTab;
-window.escapeHtml = escapeHtml;
-window.initFriendsDrawer = initFriendsDrawer;
-window.openFriendsDrawer = openFriendsDrawer;
