@@ -56,6 +56,12 @@ let roomSelectedFurniture = null;
 let roomCurrentProfile = null;
 let roomReadOnly = false;
 
+// The active tool: 'place' | 'move' | 'character' | 'eraser'
+let roomActiveTool = 'place';
+
+// When in move mode, this holds the key of the item being moved
+let roomMovingKey = null;
+
 // ---------- Init: my room ----------
 
 async function initMiniRoomTab() {
@@ -64,6 +70,8 @@ async function initMiniRoomTab() {
 
   roomReadOnly = false;
   roomSelectedFurniture = null;
+  roomActiveTool = 'place';
+  roomMovingKey = null;
 
   try {
     roomCurrentProfile = await DotoriStorage.getProfile();
@@ -107,22 +115,35 @@ function renderMiniRoomTab(container) {
         </div>
 
         <div class="miniroom-toolbox">
+
+          <!-- Tool bar -->
+          <div class="miniroom-tool-section">
+            <div class="miniroom-tool-title">도구</div>
+            <div class="miniroom-tools" id="miniroom-tools"></div>
+            <p class="miniroom-hint" id="miniroom-tool-hint">
+              가구를 선택한 다음 방의 칸을 클릭하세요.
+            </p>
+          </div>
+
+          <!-- Furniture palette -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">가구</div>
             <div class="miniroom-palette" id="miniroom-palette"></div>
-            <p class="miniroom-hint">가구를 선택한 다음 방의 칸을 클릭하세요.<br>같은 가구를 다시 누르면 취소됩니다.</p>
           </div>
 
+          <!-- Wallpaper -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">벽지</div>
             <div class="miniroom-wallpaper-options" id="miniroom-wallpaper"></div>
           </div>
 
+          <!-- Floor -->
           <div class="miniroom-tool-section">
             <div class="miniroom-tool-title">바닥</div>
             <div class="miniroom-floor-options" id="miniroom-floor"></div>
           </div>
 
+          <!-- Actions -->
           <div class="miniroom-tool-section">
             <button id="miniroom-save-btn" class="small-btn primary" style="width:100%;">
               💾 저장하기
@@ -137,11 +158,55 @@ function renderMiniRoomTab(container) {
   `;
 
   renderRoomGrid();
+  renderToolBar();
   renderFurniturePalette();
   renderWallpaperOptions();
   renderFloorOptions();
   wireMiniRoomButtons();
 }
+
+// ---------- Tool bar ----------
+
+function renderToolBar() {
+  const el = document.getElementById('miniroom-tools');
+  if (!el) return;
+
+  const tools = [
+    { id: 'place', emoji: '✏️', label: '놓기', hint: '가구를 선택한 다음 방의 칸을 클릭하세요.' },
+    { id: 'move', emoji: '✋', label: '이동', hint: '방 안의 가구를 클릭해서 다른 칸으로 옮길 수 있어요.' },
+    { id: 'character', emoji: '🌰', label: '캐릭터', hint: '내 미니미를 두고 싶은 칸을 클릭하세요.' },
+    { id: 'eraser', emoji: '🧽', label: '지우기', hint: '지우고 싶은 가구를 클릭하세요.' }
+  ];
+
+  el.innerHTML = '';
+  tools.forEach((tool) => {
+    const btn = document.createElement('button');
+    btn.className = 'miniroom-tool-btn';
+    btn.dataset.tool = tool.id;
+    btn.title = tool.label;
+    btn.innerHTML = `<span class="miniroom-tool-emoji">${tool.emoji}</span><span class="miniroom-tool-label">${tool.label}</span>`;
+
+    if (roomActiveTool === tool.id) btn.classList.add('active');
+
+    btn.addEventListener('click', () => {
+      roomActiveTool = tool.id;
+      roomSelectedFurniture = null;
+      roomMovingKey = null;
+
+      // Update hint text
+      const hint = document.getElementById('miniroom-tool-hint');
+      if (hint) hint.textContent = tool.hint;
+
+      renderToolBar();
+      renderFurniturePalette();
+      renderRoomGrid();
+    });
+
+    el.appendChild(btn);
+  });
+}
+
+// ---------- Room grid ----------
 
 function renderRoomGrid() {
   const grid = document.getElementById('miniroom-grid');
@@ -152,6 +217,9 @@ function renderRoomGrid() {
 
   const floor = FLOOR_OPTIONS.find((f) => f.id === roomState.floor) || FLOOR_OPTIONS[0];
   const floorColor = floor.css;
+
+  // Add a class to indicate current tool for cursor styling
+  grid.className = 'miniroom-grid miniroom-tool-' + roomActiveTool;
 
   grid.innerHTML = '';
 
@@ -172,6 +240,12 @@ function renderRoomGrid() {
         const furniture = document.createElement('span');
         furniture.className = 'miniroom-furniture';
         furniture.textContent = item.emoji;
+
+        // Highlight the item being moved
+        if (roomActiveTool === 'move' && roomMovingKey === key) {
+          furniture.classList.add('moving');
+        }
+
         cell.appendChild(furniture);
       }
 
@@ -183,6 +257,7 @@ function renderRoomGrid() {
       }
 
       cell.addEventListener('click', () => handleCellClick(row, col));
+
       grid.appendChild(cell);
     }
   }
@@ -192,13 +267,71 @@ function handleCellClick(row, col) {
   if (roomReadOnly) return;
 
   const key = `${row}-${col}`;
+  const isMiniMeCell = roomState.miniMePosition.row === row && roomState.miniMePosition.col === col;
+  const hasFurniture = !!roomState.layout[key];
 
-  if (roomState.miniMePosition.row === row && roomState.miniMePosition.col === col) {
+  // ---------- Character tool ----------
+  if (roomActiveTool === 'character') {
+    // Can't place mini-me on a cell with furniture
+    if (hasFurniture) {
+      flashCell(row, col);
+      return;
+    }
+    roomState.miniMePosition = { row, col };
+    renderRoomGrid();
     return;
   }
 
+  // ---------- Eraser tool ----------
+  if (roomActiveTool === 'eraser') {
+    if (hasFurniture) {
+      delete roomState.layout[key];
+      renderRoomGrid();
+    }
+    return;
+  }
+
+  // ---------- Move tool ----------
+  if (roomActiveTool === 'move') {
+    // Case A: nothing picked up yet
+    if (!roomMovingKey) {
+      if (hasFurniture) {
+        roomMovingKey = key;
+        renderRoomGrid();
+      }
+      return;
+    }
+
+    // Case B: something picked up — try to drop here
+    if (hasFurniture) {
+      // Can't drop onto another furniture — swap instead
+      const movingItem = roomState.layout[roomMovingKey];
+      const targetItem = roomState.layout[key];
+      roomState.layout[key] = movingItem;
+      roomState.layout[roomMovingKey] = targetItem;
+      roomMovingKey = null;
+      renderRoomGrid();
+      return;
+    }
+
+    if (isMiniMeCell) {
+      flashCell(row, col);
+      return;
+    }
+
+    // Move the item
+    roomState.layout[key] = roomState.layout[roomMovingKey];
+    delete roomState.layout[roomMovingKey];
+    roomMovingKey = null;
+    renderRoomGrid();
+    return;
+  }
+
+  // ---------- Place tool (default) ----------
+  if (isMiniMeCell) return;
+
   if (!roomSelectedFurniture) {
-    if (roomState.layout[key]) {
+    if (hasFurniture) {
       delete roomState.layout[key];
       renderRoomGrid();
     }
@@ -213,11 +346,25 @@ function handleCellClick(row, col) {
   renderRoomGrid();
 }
 
+function flashCell(row, col) {
+  const cell = document.querySelector(`.miniroom-cell[data-row="${row}"][data-col="${col}"]`);
+  if (!cell) return;
+  cell.classList.add('flash-error');
+  setTimeout(() => cell.classList.remove('flash-error'), 400);
+}
+
+// ---------- Furniture palette ----------
+
 function renderFurniturePalette() {
   const palette = document.getElementById('miniroom-palette');
   if (!palette) return;
 
   palette.innerHTML = '';
+
+  const isPlaceMode = roomActiveTool === 'place';
+  palette.style.opacity = isPlaceMode ? '1' : '0.35';
+  palette.style.pointerEvents = isPlaceMode ? 'auto' : 'none';
+
   FURNITURE_PALETTE.forEach((item) => {
     const btn = document.createElement('button');
     btn.className = 'miniroom-furniture-btn';
@@ -240,6 +387,8 @@ function renderFurniturePalette() {
     palette.appendChild(btn);
   });
 }
+
+// ---------- Wallpaper ----------
 
 function renderWallpaperOptions() {
   const el = document.getElementById('miniroom-wallpaper');
@@ -264,6 +413,8 @@ function renderWallpaperOptions() {
   });
 }
 
+// ---------- Floor ----------
+
 function renderFloorOptions() {
   const el = document.getElementById('miniroom-floor');
   if (!el) return;
@@ -287,6 +438,8 @@ function renderFloorOptions() {
   });
 }
 
+// ---------- Save / Clear ----------
+
 function wireMiniRoomButtons() {
   const saveBtn = document.getElementById('miniroom-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveMiniRoom);
@@ -296,6 +449,7 @@ function wireMiniRoomButtons() {
     clearBtn.addEventListener('click', () => {
       if (!confirm('방을 모두 비울까요?')) return;
       roomState.layout = {};
+      roomMovingKey = null;
       renderRoomGrid();
     });
   }
