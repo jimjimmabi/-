@@ -66,15 +66,62 @@ async function openProfileEditor() {
         const activeEmoji = document.querySelector('.mini-me-option.active');
         const activeBg = document.querySelector('.bg-option.active');
 
-        await DotoriStorage.updateProfile({
-          nickname: nickname,
-          mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
-          mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg
-        });
+        try {
+          await DotoriStorage.updateProfile({
+            nickname: nickname,
+            mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
+            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg
+          });
 
-        closeModal();
-        const updated = await DotoriStorage.getProfile();
-        await renderHome(updated);
+          closeModal();
+          const updated = await DotoriStorage.getProfile();
+          await renderHome(updated);
+        } catch (err) {
+          const isTaken = err && err.message && err.message.includes('닉네임');
+
+          if (isTaken) {
+            let suggestionsHtml = '';
+            try {
+              const suggestions = await DotoriStorage.suggestNicknames(nickname, 5);
+              if (suggestions.length > 0) {
+                suggestionsHtml = `
+                  <p style="font-size:11px; color:#888; margin-top:12px; margin-bottom:6px;">
+                    이런 이름은 어떠세요?
+                  </p>
+                  <div class="nickname-suggestions">
+                    ${suggestions.map((s) => `
+                      <button class="nickname-suggestion-btn" data-nickname="${escapeHtml(s)}">
+                        ${escapeHtml(s)}
+                      </button>
+                    `).join('')}
+                  </div>
+                `;
+              }
+            } catch (e) {
+              console.warn('Suggestion failed:', e);
+            }
+
+            showModal('이미 사용 중인 닉네임이에요',
+              `누군가 <strong>${escapeHtml(nickname)}</strong>을(를) 사용하고 있어요.<br>
+              <span style="color:#888; font-size:11px;">다른 이름을 골라주세요.</span>
+              ${suggestionsHtml}`,
+              [{ label: '확인', primary: true, onClick: closeModal }]
+            );
+
+            setTimeout(() => {
+              document.querySelectorAll('.nickname-suggestion-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                  const chosen = btn.dataset.nickname;
+                  closeModal();
+                  // Reopen the profile editor with the suggestion
+                  setTimeout(() => openProfileEditor(), 100);
+                });
+              });
+            }, 50);
+          } else {
+            alert(err.message || '저장할 수 없어요');
+          }
+        }
       }}
     ]
   );

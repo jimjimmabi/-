@@ -41,7 +41,12 @@ async function createAcorn(nickname) {
       .select()
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      if (updateError.code === '23505') {
+        throw new Error('이미 누군가 사용하고 있는 닉네임이에요.');
+      }
+      throw updateError;
+    }
 
     localStorage.setItem('dotori_session', JSON.stringify({
       loggedIn: true, dotori_id: updated.dotori_id, user_id: updated.id, is_owner: true
@@ -69,7 +74,12 @@ async function createAcorn(nickname) {
     .select()
     .single();
 
-  if (profileError) throw profileError;
+  if (profileError) {
+    if (profileError.code === '23505') {
+      throw new Error('이미 누군가 사용하고 있는 닉네임이에요.');
+    }
+    throw profileError;
+  }
 
   await sb.from('rooms').insert([{ user_id: userId }]);
 
@@ -102,16 +112,29 @@ async function loadAcorn() {
 }
 
 async function loginByDotoriId(dotoriId) {
+  const cleaned = String(dotoriId).trim().toLowerCase();
+
   const { data: profile, error } = await sb
     .from('profiles')
     .select('*')
-    .eq('dotori_id', dotoriId)
+    .eq('dotori_id', cleaned)
     .single();
 
   if (error || !profile) return null;
 
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) await sb.auth.signInAnonymously();
+  if (!session) {
+    const { error: authError } = await sb.auth.signInAnonymously();
+    if (authError) throw authError;
+  }
+
+  localStorage.setItem('dotori_my_id', profile.dotori_id);
+  localStorage.setItem('dotori_session', JSON.stringify({
+    loggedIn: true,
+    dotori_id: profile.dotori_id,
+    user_id: profile.id,
+    is_owner: true
+  }));
 
   return profile;
 }
@@ -193,8 +216,72 @@ async function updateProfile(updates) {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('이미 누군가 사용하고 있는 닉네임이에요.');
+    }
+    throw error;
+  }
   return data;
+}
+
+// ---------- Nickname availability + suggestions ----------
+
+async function isNicknameTaken(nickname) {
+  const trimmed = String(nickname).trim();
+  if (!trimmed) return false;
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('id')
+    .eq('nickname', trimmed)
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data;
+}
+
+async function suggestNicknames(base, count) {
+  count = count || 5;
+  const cleanBase = String(base || '').trim().replace(/\s+/g, '');
+  if (!cleanBase) return [];
+
+  const suggestions = [];
+  const seen = new Set();
+
+  // Strategy 1: cute seasonal/forest words after the name
+  const suffixes = ['_숲', '_forest', '_2008', '_acorn', '님', '_🌰'];
+
+  // Strategy 2: numbers 1-99 appended
+  // Strategy 3: with a small dot between
+  const templates = [
+    (b) => `${b}${Math.floor(Math.random() * 89) + 10}`,
+    (b) => `${b}${Math.floor(Math.random() * 899) + 100}`,
+    (b) => `${b}${suffixes[Math.floor(Math.random() * suffixes.length)]}`,
+    (b) => `${b}.${Math.floor(Math.random() * 89) + 10}`,
+    (b) => `${b}_${Math.floor(Math.random() * 89) + 10}`
+  ];
+
+  // Try up to 30 attempts to find `count` free nicknames
+  for (let attempt = 0; attempt < 30 && suggestions.length < count; attempt++) {
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    let candidate = template(cleanBase);
+
+    // Trim if too long (12 char max)
+    if (candidate.length > 12) candidate = candidate.slice(0, 12);
+
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+
+    try {
+      const taken = await isNicknameTaken(candidate);
+      if (!taken) suggestions.push(candidate);
+    } catch (e) {
+      // ignore individual lookup errors
+    }
+  }
+
+  return suggestions;
 }
 
 // ---------- Tastes ----------
@@ -259,7 +346,6 @@ async function saveMyRoom(room) {
   return !error;
 }
 
-// Keep old name for compatibility
 async function saveRoom(room) {
   return saveMyRoom(room);
 }
@@ -802,7 +888,6 @@ async function createGroup(name, description) {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
-  // Generate a code via the database function
   const { data: codeData, error: codeErr } = await sb.rpc('generate_invite_code');
   if (codeErr) throw codeErr;
 
@@ -821,7 +906,6 @@ async function createGroup(name, description) {
 
   if (groupErr) throw groupErr;
 
-  // Auto-join the creator
   const { error: joinErr } = await sb
     .from('group_members')
     .insert([{ group_id: group.id, user_id: me.id }]);
@@ -845,7 +929,6 @@ async function joinGroupByCode(code) {
 
   if (groupErr || !group) throw new Error('그런 코드를 찾을 수 없어요');
 
-  // Check if already a member
   const { data: existing } = await sb
     .from('group_members')
     .select('*')
@@ -855,7 +938,6 @@ async function joinGroupByCode(code) {
 
   if (existing) return group;
 
-  // Check member count
   const { count, error: countErr } = await sb
     .from('group_members')
     .select('*', { count: 'exact', head: true })
@@ -896,7 +978,6 @@ async function getMyGroups() {
 
   if (groupErr) return [];
 
-  // For each group, fetch member count
   const enriched = await Promise.all(groups.map(async (g) => {
     const { count } = await sb
       .from('group_members')
@@ -1195,6 +1276,7 @@ window.DotoriSupabase = {
 
   createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
   getProfile, getProfileById, getProfileByDotoriId, updateProfile,
+  isNicknameTaken, suggestNicknames,
   getTastes, updateTastes,
   getRoom, getRoomByDotoriId, saveMyRoom, saveRoom,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,

@@ -1860,3 +1860,36 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   0%, 100% { background: transparent; }
   30% { background: rgba(255, 80, 80, 0.35); }
 }
+
+/* ============================================
+   Nickname suggestions
+   ============================================ */
+
+.nickname-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.nickname-suggestion-btn {
+  padding: 6px 12px;
+  background: linear-gradient(to bottom, #FFF8F0, #FFEEDD);
+  border: 1px solid var(--pink);
+  border-radius: 14px;
+  font-size: 12px;
+  color: var(--acorn-dark);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.nickname-suggestion-btn:hover {
+  background: linear-gradient(to bottom, #FFB8D4, var(--pink));
+  color: #FFFFFF;
+  transform: scale(1.05);
+}
+
+.nickname-suggestion-btn:active {
+  transform: scale(0.98);
+}

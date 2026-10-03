@@ -100,11 +100,56 @@ async function initAuth() {
       );
     } catch (err) {
       console.error('createAcorn failed:', err);
-      showModal('오류',
-        '도토리를 만들 수 없어요.<br>' +
-        '<span style="color:#888; font-size:11px;">' + (err.message || '알 수 없는 오류') + '</span>',
-        [{ label: '확인', primary: true, onClick: closeModal }]
-      );
+
+      const isTaken = err && err.message && err.message.includes('닉네임');
+
+      if (isTaken) {
+        // Show suggestions
+        let suggestionsHtml = '';
+        try {
+          const suggestions = await DotoriStorage.suggestNicknames(nickname, 5);
+          if (suggestions.length > 0) {
+            suggestionsHtml = `
+              <p style="font-size:11px; color:#888; margin-top:12px; margin-bottom:6px;">
+                이런 이름은 어떠세요?
+              </p>
+              <div class="nickname-suggestions">
+                ${suggestions.map((s) => `
+                  <button class="nickname-suggestion-btn" data-nickname="${escapeHtml(s)}">
+                    ${escapeHtml(s)}
+                  </button>
+                `).join('')}
+              </div>
+            `;
+          }
+        } catch (e) {
+          console.warn('Suggestion failed:', e);
+        }
+
+        showModal('이미 사용 중인 닉네임이에요',
+          `누군가 <strong>${escapeHtml(nickname)}</strong>을(를) 사용하고 있어요.<br>
+          <span style="color:#888; font-size:11px;">다른 이름을 골라주세요.</span>
+          ${suggestionsHtml}`,
+          [{ label: '확인', primary: true, onClick: closeModal }]
+        );
+
+        // Wire up suggestion buttons
+        setTimeout(() => {
+          document.querySelectorAll('.nickname-suggestion-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const chosen = btn.dataset.nickname;
+              closeModal();
+              if (nicknameInput) nicknameInput.value = chosen;
+            });
+          });
+        }, 50);
+      } else {
+        showModal('오류',
+          '도토리를 만들 수 없어요.<br>' +
+          '<span style="color:#888; font-size:11px;">' + (err.message || '알 수 없는 오류') + '</span>',
+          [{ label: '확인', primary: true, onClick: closeModal }]
+        );
+      }
     } finally {
       createBtn.disabled = false;
       createBtn.textContent = '🌰 새 도토리 만들기';
