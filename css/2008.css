@@ -1261,48 +1261,6 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   transform: scale(1.1);
 }
 
-.chat-reply-quote {
-  max-width: 100%;
-  margin-bottom: 4px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 10px;
-  line-height: 1.4;
-  border-left: 3px solid var(--pink);
-  background: #FFF8F0;
-  color: var(--text-light);
-  overflow: hidden;
-}
-
-.chat-reply-quote.mine {
-  border-left-color: var(--pink-dark);
-  background: #FFE8F0;
-  align-self: flex-end;
-}
-
-.chat-reply-quote.theirs {
-  border-left-color: var(--acorn);
-  background: var(--cream);
-  align-self: flex-start;
-}
-
-.chat-reply-quote-author {
-  display: block;
-  font-weight: bold;
-  color: var(--acorn-dark);
-  font-size: 9px;
-  margin-bottom: 2px;
-}
-
-.chat-reply-quote-text {
-  display: block;
-  color: #777;
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .chat-reply-preview {
   padding: 8px 10px;
   background: var(--cream);
@@ -1455,34 +1413,18 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   transform: scale(1.05);
 }
 
-@media (max-width: 500px) {
-  .chat-bubble-actions {
-    opacity: 1;
-  }
-
-  .reaction-picker {
-    gap: 2px;
-    padding: 4px 6px;
-  }
-
-  .reaction-picker-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 16px;
-  }
-}
-
 /* ============================================
-   Chat: author labels + reply emphasis
+   Author labels + prominent reply quotes
    ============================================ */
 
 .chat-author-label {
   font-size: 10px;
   font-weight: bold;
   color: var(--text-light);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   padding: 0 8px;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .chat-bubble-row.mine .chat-author-label {
@@ -1495,7 +1437,6 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   color: var(--acorn-dark);
 }
 
-/* Reply quote — prominent */
 .chat-reply-quote {
   display: flex;
   align-items: flex-start;
@@ -1556,4 +1497,21 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 500px) {
+  .chat-bubble-actions {
+    opacity: 1;
+  }
+
+  .reaction-picker {
+    gap: 2px;
+    padding: 4px 6px;
+  }
+
+  .reaction-picker-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
 }
