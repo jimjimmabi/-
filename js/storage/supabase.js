@@ -401,7 +401,7 @@ function calculateMatch(myTastes, theirTastes) {
 
 // ---------- Notes (쪽지) ----------
 
-async function sendNote(recipientDotoriId, message) {
+async function sendNote(recipientDotoriId, message, replyToId) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error('로그인이 필요해요');
 
@@ -412,13 +412,17 @@ async function sendNote(recipientDotoriId, message) {
   if (!recipient) throw new Error('그런 도토리를 찾을 수 없어요');
   if (recipient.id === me.id) throw new Error('자신에게는 쪽지를 보낼 수 없어요');
 
+  const insertRow = {
+    sender_id: me.id,
+    recipient_id: recipient.id,
+    message
+  };
+
+  if (replyToId) insertRow.reply_to_id = replyToId;
+
   const { data, error } = await sb
     .from('notes')
-    .insert([{
-      sender_id: me.id,
-      recipient_id: recipient.id,
-      message
-    }])
+    .insert([insertRow])
     .select()
     .single();
 
@@ -500,6 +504,87 @@ async function markNoteRead(noteId) {
     .update({ is_read: true })
     .eq('id', noteId);
   return !error;
+}
+
+// ---------- Reactions ----------
+
+const REACTION_EMOJIS = ['❤️', '😊', '🌰', '✨', '💭'];
+
+async function getReactionsForNotes(noteIds) {
+  if (!Array.isArray(noteIds) || noteIds.length === 0) return {};
+
+  const { data, error } = await sb
+    .from('message_reactions')
+    .select('*')
+    .in('note_id', noteIds);
+
+  if (error) return {};
+
+  const grouped = {};
+  data.forEach((r) => {
+    if (!grouped[r.note_id]) grouped[r.note_id] = [];
+    grouped[r.note_id].push(r);
+  });
+
+  return grouped;
+}
+
+async function addReaction(noteId, emoji) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const { data, error } = await sb
+    .from('message_reactions')
+    .insert([{
+      note_id: noteId,
+      user_id: me.id,
+      emoji
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    // Already reacted with the same emoji (unique constraint)
+    if (error.code === '23505') return null;
+    throw error;
+  }
+  return data;
+}
+
+async function removeReaction(noteId, emoji) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  const { error } = await sb
+    .from('message_reactions')
+    .delete()
+    .eq('note_id', noteId)
+    .eq('user_id', me.id)
+    .eq('emoji', emoji);
+
+  return !error;
+}
+
+async function toggleReaction(noteId, emoji) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  // Check if it already exists
+  const { data: existing } = await sb
+    .from('message_reactions')
+    .select('id')
+    .eq('note_id', noteId)
+    .eq('user_id', me.id)
+    .eq('emoji', emoji)
+    .maybeSingle();
+
+  if (existing) {
+    await removeReaction(noteId, emoji);
+    return { action: 'removed' };
+  } else {
+    await addReaction(noteId, emoji);
+    return { action: 'added' };
+  }
 }
 
 // ---------- Friends (일촌) ----------
@@ -811,10 +896,22 @@ function subscribeToMyNotes(callback) {
   return channel;
 }
 
+function subscribeToReactions(callback) {
+  const channel = sb
+    .channel('reactions-live')
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'message_reactions'
+    }, (payload) => callback(payload))
+    .subscribe();
+  return channel;
+}
+
 // ---------- Expose ----------
 
 window.DotoriSupabase = {
   MAX_ILCHON,
+  REACTION_EMOJIS,
+
   createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
   getProfile, getProfileById, getProfileByDotoriId, updateProfile,
   getTastes, updateTastes,
@@ -822,10 +919,17 @@ window.DotoriSupabase = {
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,
+
   sendNote, getInbox, getSentNotes, getUnreadCount, markNoteRead,
+
+  getReactionsForNotes, addReaction, removeReaction, toggleReaction,
+
   getMyIlchonCount, isIlchon, hasPendingRequestTo,
   sendFriendRequest, getPendingRequests,
   acceptFriendRequest, declineFriendRequest, getIlchon,
+
   uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
-  subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos, subscribeToMyNotes
+
+  subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos,
+  subscribeToMyNotes, subscribeToReactions
 };

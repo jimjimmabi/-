@@ -3,7 +3,11 @@
 // ============================================
 
 let activeChatChannel = null;
+let activeReactionChannel = null;
 let activeChatDotoriId = null;
+let activeChatNotes = [];
+let activeReplyTo = null;
+let activeIsFriend = false;
 
 // ---------- Inbox: list of conversations ----------
 
@@ -118,7 +122,7 @@ async function renderConversationList() {
   });
 }
 
-// ---------- One conversation (LIVE) ----------
+// ---------- Open a conversation ----------
 
 async function openConversation(conv) {
   // Mark received notes as read
@@ -129,28 +133,71 @@ async function openConversation(conv) {
 
   // Track active chat
   activeChatDotoriId = conv.dotori_id;
+  activeReplyTo = null;
+
+  // Check if this is a friend
+  try {
+    activeIsFriend = await DotoriStorage.isIlchon(conv.dotori_id);
+  } catch (e) {
+    activeIsFriend = false;
+  }
+
+  // Load existing reactions
+  const noteIds = conv.notes.map((n) => n.id);
+  let reactionsByNote = {};
+  try {
+    reactionsByNote = await DotoriStorage.getReactionsForNotes(noteIds);
+  } catch (e) {}
+
+  // Attach reactions to notes
+  conv.notes = conv.notes.map((n) => ({
+    ...n,
+    reactions: reactionsByNote[n.id] || []
+  }));
+
+  activeChatNotes = conv.notes;
 
   renderConversationModal(conv);
 
-  // Subscribe to realtime for new messages
+  // Live subscriptions
   setupLiveChat(conv);
+  setupLiveReactions(conv);
 }
+
+// ---------- Render the chat modal ----------
 
 function renderConversationModal(conv) {
   const threadHtml = conv.notes.map((note) => renderChatBubble(note)).join('');
 
   const hasVisitBtn = conv.dotori_id && conv.dotori_id !== getMyDotoriId();
 
+  // Friend badge / status
+  const friendBadgeHtml = activeIsFriend
+    ? `<span class="chat-friend-badge" title="일촌">🌰 일촌</span>`
+    : '';
+
+  const headerClass = activeIsFriend ? 'chat-header chat-header-friend' : 'chat-header';
+
   showModal(`💌 ${conv.nickname}`,
     `<div class="chat-window">
-      <div class="chat-header">
-        <div class="chat-header-avatar">${conv.mini_me}</div>
-        <div class="chat-header-name">${escapeHtml(conv.nickname)}</div>
+      <div class="${headerClass}">
+        <div class="chat-header-avatar"${activeIsFriend ? ' data-friend="1"' : ''}>${conv.mini_me}</div>
+        <div class="chat-header-name">
+          ${escapeHtml(conv.nickname)}
+          ${friendBadgeHtml}
+        </div>
         <span class="chat-live-dot" title="실시간 연결됨"></span>
         ${hasVisitBtn ? `<button class="small-btn" id="chat-visit-btn" data-dotori="${conv.dotori_id}">방문하기</button>` : ''}
       </div>
       <div class="chat-thread" id="chat-thread">
         ${threadHtml}
+      </div>
+      <div class="chat-reply-preview hidden" id="chat-reply-preview">
+        <div class="chat-reply-preview-inner">
+          <span class="chat-reply-label">↩ 답장</span>
+          <span class="chat-reply-text" id="chat-reply-text"></span>
+          <button class="chat-reply-cancel" id="chat-reply-cancel" aria-label="취소">✕</button>
+        </div>
       </div>
       <div class="chat-compose">
         <textarea id="chat-input" maxlength="300" rows="2"
@@ -184,6 +231,12 @@ function renderConversationModal(conv) {
     });
   }
 
+  // Wire reply cancel
+  const replyCancel = document.getElementById('chat-reply-cancel');
+  if (replyCancel) {
+    replyCancel.addEventListener('click', cancelReply);
+  }
+
   // Wire send
   const sendBtn = document.getElementById('chat-send-btn');
   const input = document.getElementById('chat-input');
@@ -192,21 +245,26 @@ function renderConversationModal(conv) {
     const msg = input.value.trim();
     if (!msg) return;
 
+    const replyToId = activeReplyTo ? activeReplyTo.id : null;
+
     input.value = '';
+    cancelReply();
 
     try {
-      await DotoriStorage.sendNote(conv.dotori_id, msg);
-      // The realtime subscription will append it — no manual append needed.
-      // But for instant feedback, we append optimistically:
+      const saved = await DotoriStorage.sendNote(conv.dotori_id, msg, replyToId);
+      // Realtime will pick it up. But optimistic append for instant feedback:
       appendChatBubble({
+        id: saved ? saved.id : null,
         message: msg,
         created_at: new Date().toISOString(),
-        direction: 'sent'
+        direction: 'sent',
+        reply_to_id: replyToId,
+        reactions: []
       }, true);
     } catch (err) {
       console.error('Send failed:', err);
       alert('쪽지를 보낼 수 없어요: ' + (err.message || ''));
-      input.value = msg; // restore on failure
+      input.value = msg;
     }
   };
 
@@ -219,16 +277,77 @@ function renderConversationModal(conv) {
   });
 }
 
+// ---------- Chat bubble ----------
+
 function renderChatBubble(note) {
   const mine = note.direction === 'sent';
+
+  // Reply quote
+  let replyQuoteHtml = '';
+  if (note.reply_to_id) {
+    const parent = activeChatNotes.find((n) => n.id === note.reply_to_id);
+    if (parent) {
+      const parentAuthor = parent.direction === 'sent' ? '나' : '상대';
+      replyQuoteHtml = `
+        <div class="chat-reply-quote ${mine ? 'mine' : 'theirs'}">
+          <span class="chat-reply-quote-author">${parentAuthor}</span>
+          <span class="chat-reply-quote-text">${escapeHtml(truncate(parent.message, 60))}</span>
+        </div>
+      `;
+    }
+  }
+
+  // Reactions
+  const reactionsHtml = renderReactionsBar(note);
+
+  const replyBtnHtml = `
+    <button class="chat-action-btn chat-reply-btn" data-note-id="${note.id}" title="답장">↩</button>
+  `;
+
   return `
-    <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}">
-      <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
-        ${escapeHtml(note.message)}
+    <div class="chat-bubble-row ${mine ? 'mine' : 'theirs'}" data-note-id="${note.id}">
+      ${replyQuoteHtml}
+      <div class="chat-bubble-wrap">
+        <div class="chat-bubble ${mine ? 'mine' : 'theirs'}">
+          ${escapeHtml(note.message)}
+        </div>
+        <div class="chat-bubble-actions">
+          ${replyBtnHtml}
+          <button class="chat-action-btn chat-react-btn" data-note-id="${note.id}" title="반응">😊</button>
+        </div>
       </div>
       <div class="chat-time">${formatDate(note.created_at)} ${formatTime(note.created_at)}</div>
+      ${reactionsHtml}
     </div>
   `;
+}
+
+function renderReactionsBar(note) {
+  if (!note.id) return '';
+
+  const reactions = note.reactions || [];
+  const myUserId = getMyUserId();
+
+  // Group by emoji
+  const grouped = {};
+  reactions.forEach((r) => {
+    if (!grouped[r.emoji]) grouped[r.emoji] = [];
+    grouped[r.emoji].push(r);
+  });
+
+  const emojis = Object.keys(grouped);
+  if (emojis.length === 0) return '';
+
+  const chips = emojis.map((emoji) => {
+    const users = grouped[emoji];
+    const iAmIn = users.some((u) => u.user_id === myUserId);
+    return `<button class="chat-reaction-chip ${iAmIn ? 'mine' : ''}" data-note-id="${note.id}" data-emoji="${emoji}">
+      <span class="reaction-emoji">${emoji}</span>
+      <span class="reaction-count">${users.length}</span>
+    </button>`;
+  }).join('');
+
+  return `<div class="chat-reactions-bar">${chips}</div>`;
 }
 
 function appendChatBubble(note, isOptimistic) {
@@ -239,65 +358,240 @@ function appendChatBubble(note, isOptimistic) {
   wrapper.innerHTML = renderChatBubble(note);
   const newNode = wrapper.firstElementChild;
 
-  // Avoid duplicates: check if a bubble with the same message + time exists
-  // For optimistic sends, we mark them with a data attribute that the realtime
-  // callback can find and "confirm".
   if (isOptimistic) {
     newNode.dataset.optimistic = 'true';
     newNode.dataset.message = note.message;
+    // Assign a temp note id so reactions can be attached later
+    if (!note.id) {
+      const tempId = 'temp-' + Date.now();
+      newNode.dataset.noteId = tempId;
+      note.id = tempId;
+    }
   }
 
   thread.appendChild(newNode);
   thread.scrollTop = thread.scrollHeight;
+
+  wireBubbleActions(newNode);
+}
+
+// ---------- Wire bubble actions (reply, react) ----------
+
+function wireBubbleActions(bubbleNode) {
+  // Reply button
+  const replyBtn = bubbleNode.querySelector('.chat-reply-btn');
+  if (replyBtn) {
+    replyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const noteId = replyBtn.dataset.noteId;
+      const note = activeChatNotes.find((n) => n.id === noteId);
+      if (note) startReply(note);
+    });
+  }
+
+  // React button
+  const reactBtn = bubbleNode.querySelector('.chat-react-btn');
+  if (reactBtn) {
+    reactBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const noteId = reactBtn.dataset.noteId;
+      openReactionPicker(e, noteId);
+    });
+  }
+
+  // Existing reaction chips — clicking toggles
+  bubbleNode.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
+    chip.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const noteId = chip.dataset.noteId;
+      const emoji = chip.dataset.emoji;
+      await handleReactionToggle(noteId, emoji);
+    });
+  });
+}
+
+function wireAllBubbles() {
+  document.querySelectorAll('.chat-bubble-row').forEach((node) => {
+    wireBubbleActions(node);
+  });
+}
+
+// ---------- Reply ----------
+
+function startReply(note) {
+  activeReplyTo = note;
+  const preview = document.getElementById('chat-reply-preview');
+  const text = document.getElementById('chat-reply-text');
+  const input = document.getElementById('chat-input');
+
+  if (preview && text) {
+    preview.classList.remove('hidden');
+    text.textContent = truncate(note.message, 60);
+  }
+  if (input) input.focus();
+}
+
+function cancelReply() {
+  activeReplyTo = null;
+  const preview = document.getElementById('chat-reply-preview');
+  if (preview) preview.classList.add('hidden');
+}
+
+// ---------- Reaction picker ----------
+
+function openReactionPicker(event, noteId) {
+  // Remove any existing picker
+  document.querySelectorAll('.reaction-picker').forEach((p) => p.remove());
+
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.innerHTML = DotoriStorage.REACTION_EMOJIS.map((emoji) =>
+    `<button class="reaction-picker-btn" data-emoji="${emoji}">${emoji}</button>`
+  ).join('');
+
+  // Position relative to the react button
+  const rect = event.currentTarget.getBoundingClientRect();
+  picker.style.position = 'fixed';
+  picker.style.left = `${Math.max(10, rect.left - 80)}px`;
+  picker.style.top = `${rect.top - 46}px`;
+
+  document.body.appendChild(picker);
+
+  // Wire picker buttons
+  picker.querySelectorAll('.reaction-picker-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const emoji = btn.dataset.emoji;
+      picker.remove();
+      await handleReactionToggle(noteId, emoji);
+    });
+  });
+
+  // Close on outside click
+  setTimeout(() => {
+    const closeHandler = (e) => {
+      if (!picker.contains(e.target)) {
+        picker.remove();
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    document.addEventListener('click', closeHandler);
+  }, 50);
+}
+
+// ---------- Reaction toggle ----------
+
+async function handleReactionToggle(noteId, emoji) {
+  // Don't react to unsaved optimistic notes
+  if (typeof noteId === 'string' && noteId.startsWith('temp-')) return;
+
+  try {
+    await DotoriStorage.toggleReaction(noteId, emoji);
+    // Realtime will refresh — but do it optimistically too
+    await refreshReactionsForNote(noteId);
+  } catch (err) {
+    console.error('Reaction toggle failed:', err);
+  }
+}
+
+async function refreshReactionsForNote(noteId) {
+  try {
+    const grouped = await DotoriStorage.getReactionsForNotes([noteId]);
+    const reactions = grouped[noteId] || [];
+    const note = activeChatNotes.find((n) => n.id === noteId);
+    if (note) note.reactions = reactions;
+    updateBubbleReactions(noteId, reactions);
+  } catch (e) {
+    console.warn('Refresh reactions failed:', e);
+  }
+}
+
+function updateBubbleReactions(noteId, reactions) {
+  const row = document.querySelector(`.chat-bubble-row[data-note-id="${noteId}"]`);
+  if (!row) return;
+
+  // Remove the old reactions bar
+  const oldBar = row.querySelector('.chat-reactions-bar');
+  if (oldBar) oldBar.remove();
+
+  // Build a new one
+  const fake = { id: noteId, reactions };
+  const html = renderReactionsBar(fake);
+
+  if (html) {
+    row.insertAdjacentHTML('beforeend', html);
+    // Rewire chip clicks
+    row.querySelectorAll('.chat-reaction-chip').forEach((chip) => {
+      chip.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await handleReactionToggle(chip.dataset.noteId, chip.dataset.emoji);
+      });
+    });
+  }
 }
 
 // ---------- Live chat subscription ----------
 
 function setupLiveChat(conv) {
-  // Clean up any existing subscription first
   closeLiveChat();
 
   try {
     activeChatChannel = DotoriStorage.subscribeToNotes(async (newNote) => {
-      // Only care about messages that belong to THIS conversation
       if (!activeChatDotoriId) return;
 
       const me = await DotoriStorage.getProfile();
       if (!me) return;
 
       const isMine = newNote.sender_id === me.id;
-      const otherIdMatches = !isMine;
 
-      // For received: newNote.sender_id should match the person we're chatting with
-      // For sent (from another tab): newNote.recipient_id matches them
       if (isMine) {
-        // Sent from another tab/device — check recipient
         const recipient = await DotoriStorage.getProfileByDotoriId(activeChatDotoriId);
         if (!recipient || newNote.recipient_id !== recipient.id) return;
 
-        // Look for an optimistic bubble to confirm
+        // Check if we optimistically displayed this
         const thread = document.getElementById('chat-thread');
         if (thread) {
           const optimistic = thread.querySelector(`[data-optimistic="true"][data-message="${cssEscape(newNote.message)}"]`);
           if (optimistic) {
+            // Convert it to a "real" note — attach the real id
             optimistic.removeAttribute('data-optimistic');
             optimistic.removeAttribute('data-message');
-            return; // already displayed
+            if (newNote.id) {
+              optimistic.dataset.noteId = newNote.id;
+              const replyBtn = optimistic.querySelector('.chat-reply-btn');
+              const reactBtn = optimistic.querySelector('.chat-react-btn');
+              if (replyBtn) replyBtn.dataset.noteId = newNote.id;
+              if (reactBtn) reactBtn.dataset.noteId = newNote.id;
+
+              // Update local store
+              const existing = activeChatNotes.find((n) => n.id === newNote.id);
+              if (!existing) {
+                activeChatNotes.push({
+                  ...newNote,
+                  direction: 'sent',
+                  reactions: []
+                });
+              }
+            }
+            return;
           }
         }
-        appendChatBubble({ ...newNote, direction: 'sent' });
+
+        const noteWithReactions = { ...newNote, direction: 'sent', reactions: [] };
+        activeChatNotes.push(noteWithReactions);
+        appendChatBubble(noteWithReactions);
       } else {
-        // Received — check sender
         const sender = await DotoriStorage.getProfileByDotoriId(activeChatDotoriId);
         if (!sender || newNote.sender_id !== sender.id) return;
 
-        appendChatBubble({ ...newNote, direction: 'received' });
+        const noteWithReactions = { ...newNote, direction: 'received', reactions: [] };
+        activeChatNotes.push(noteWithReactions);
+        appendChatBubble(noteWithReactions);
 
-        // Mark as read since the chat window is open
         try { await DotoriStorage.markNoteRead(newNote.id); } catch (e) {}
       }
 
-      // Update inbox badge
+      // Update inbox count
       try {
         const count = await DotoriStorage.getUnreadCount();
         const inboxCount = document.getElementById('inbox-count');
@@ -309,16 +603,45 @@ function setupLiveChat(conv) {
   }
 }
 
+function setupLiveReactions(conv) {
+  if (activeReactionChannel) {
+    try { activeReactionChannel.unsubscribe(); } catch (e) {}
+    activeReactionChannel = null;
+  }
+
+  try {
+    activeReactionChannel = DotoriStorage.subscribeToReactions(async (payload) => {
+      const row = payload.new || payload.old;
+      if (!row || !row.note_id) return;
+
+      // Is this note in our current conversation?
+      const note = activeChatNotes.find((n) => n.id === row.note_id);
+      if (!note) return;
+
+      await refreshReactionsForNote(row.note_id);
+    });
+  } catch (e) {
+    console.warn('Live reactions subscribe failed:', e);
+  }
+}
+
 function closeLiveChat() {
   if (activeChatChannel) {
     try { activeChatChannel.unsubscribe(); } catch (e) {}
     activeChatChannel = null;
+  }
+  if (activeReactionChannel) {
+    try { activeReactionChannel.unsubscribe(); } catch (e) {}
+    activeReactionChannel = null;
   }
 }
 
 function closeActiveChat() {
   closeLiveChat();
   activeChatDotoriId = null;
+  activeChatNotes = [];
+  activeReplyTo = null;
+  activeIsFriend = false;
   closeModal();
 }
 
@@ -326,8 +649,18 @@ function closeActiveChat() {
 
 function getMyDotoriId() {
   try {
-    const raw = localStorage.getItem('dotori_my_id');
-    return raw || null;
+    return localStorage.getItem('dotori_my_id') || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getMyUserId() {
+  try {
+    const raw = localStorage.getItem('dotori_session');
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return s.user_id || null;
   } catch (e) {
     return null;
   }
@@ -337,7 +670,7 @@ function cssEscape(str) {
   return String(str).replace(/"/g, '\\"');
 }
 
-// ---------- Export to window (for friends.js) ----------
+// ---------- Export to window ----------
 
 window.openConversation = openConversation;
 window.openInbox = openInbox;

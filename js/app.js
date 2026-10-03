@@ -283,7 +283,6 @@ function initHeaderButtons() {
     if (tasteTab) tasteTab.click();
   });
 
-  // Notification banner buttons
   const notifEnableBtn = document.getElementById('notif-enable-btn');
   if (notifEnableBtn) notifEnableBtn.addEventListener('click', requestNotificationPermission);
 
@@ -377,7 +376,7 @@ function initRealtimeSubscriptions() {
   }
 }
 
-// ---------- Init (my page) ----------
+// ---------- Init ----------
 
 function initApp(profile) {
   const oldBanner = document.getElementById('visit-banner');
