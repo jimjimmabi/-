@@ -1515,3 +1515,254 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
     font-size: 16px;
   }
 }
+
+/* ============================================
+   미니룸 (Mini-Room)
+   ============================================ */
+
+.miniroom-page { max-width: 100%; }
+
+.miniroom-header {
+  text-align: center;
+  padding: 10px 0 20px;
+  border-bottom: 1px solid #EEEEEE;
+  margin-bottom: 16px;
+}
+
+.miniroom-header h2 {
+  font-size: 18px;
+  color: var(--acorn-dark);
+  margin-bottom: 10px;
+}
+
+.miniroom-purpose {
+  font-size: 11px;
+  color: var(--text-light);
+  line-height: 1.7;
+}
+
+.miniroom-layout {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .miniroom-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- The room stage ---------- */
+
+.miniroom-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.miniroom-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  border: 2px solid var(--border-dark);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.miniroom-grid.compact {
+  max-width: 220px;
+  border-width: 1px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.miniroom-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-width: 0;
+  min-height: 0;
+}
+
+.miniroom-grid:not(.compact) .miniroom-cell:hover {
+  background: rgba(255, 158, 196, 0.25);
+  outline: 1px solid var(--pink);
+  outline-offset: -1px;
+}
+
+.miniroom-furniture {
+  font-size: 26px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+}
+
+.miniroom-grid.compact .miniroom-furniture {
+  font-size: 13px;
+}
+
+.miniroom-mini-me {
+  font-size: 30px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
+  animation: miniMeBounce 2.5s ease-in-out infinite;
+}
+
+.miniroom-grid.compact .miniroom-mini-me {
+  font-size: 15px;
+  animation: none;
+}
+
+@keyframes miniMeBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* ---------- Toolbox ---------- */
+
+.miniroom-toolbox {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.miniroom-tool-section {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.miniroom-tool-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--acorn-dark);
+  border-bottom: 1px solid #EEEEEE;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.miniroom-hint {
+  font-size: 10px;
+  color: #AAAAAA;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ---------- Furniture palette ---------- */
+
+.miniroom-palette {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.miniroom-furniture-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--cream);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s;
+  line-height: 1;
+}
+
+.miniroom-furniture-btn:hover {
+  background: #FFF0F8;
+  transform: scale(1.05);
+}
+
+.miniroom-furniture-btn.active {
+  border-color: var(--pink);
+  background: #FFE8F0;
+  box-shadow: 0 0 0 2px rgba(232, 123, 168, 0.2);
+}
+
+/* ---------- Wallpaper options ---------- */
+
+.miniroom-wallpaper-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.miniroom-wallpaper-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid #DDDDDD;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.miniroom-wallpaper-btn:hover { transform: scale(1.08); }
+
+.miniroom-wallpaper-btn.active {
+  border-color: var(--pink-dark);
+  box-shadow: 0 0 0 2px #FFE8F0;
+}
+
+/* ---------- Floor options ---------- */
+
+.miniroom-floor-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.miniroom-floor-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid #DDDDDD;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.miniroom-floor-btn:hover { transform: scale(1.1); }
+
+.miniroom-floor-btn.active {
+  border-color: var(--pink-dark);
+  box-shadow: 0 0 0 2px #FFE8F0;
+}
+
+/* ---------- Home room preview ---------- */
+
+.home-room-panel {
+  text-align: center;
+}
+
+.home-room-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+/* ---------- Visit modal room ---------- */
+
+.visit-room {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}

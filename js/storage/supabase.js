@@ -11,6 +11,7 @@ const sb = window.supabase.createClient(
 );
 
 const MAX_ILCHON = 12;
+const MAX_GROUP_MEMBERS = 8;
 
 // ---------- Auth ----------
 
@@ -210,7 +211,7 @@ async function updateTastes(tastes) {
   return updateProfile({ tastes });
 }
 
-// ---------- Room ----------
+// ---------- Room (Mini-Room) ----------
 
 async function getRoom() {
   const { data: { user } } = await sb.auth.getUser();
@@ -226,22 +227,41 @@ async function getRoom() {
   return data;
 }
 
-async function saveRoom(room) {
+async function getRoomByDotoriId(dotoriId) {
+  const owner = await getProfileByDotoriId(dotoriId);
+  if (!owner) return null;
+
+  const { data, error } = await sb
+    .from('rooms')
+    .select('*')
+    .eq('user_id', owner.id)
+    .single();
+
+  if (error) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  return data;
+}
+
+async function saveMyRoom(room) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return false;
 
   const { error } = await sb
     .from('rooms')
     .update({
-      layout: room.layout,
-      wallpaper: room.wallpaper,
-      floor: room.floor,
-      bgm_choice: room.bgm_choice,
+      layout: room.layout || {},
+      wallpaper: room.wallpaper || 'default',
+      floor: room.floor || 'default',
+      bgm_choice: room.bgm_choice || null,
       updated_at: new Date().toISOString()
     })
     .eq('user_id', user.id);
 
   return !error;
+}
+
+// Keep old name for compatibility
+async function saveRoom(room) {
+  return saveMyRoom(room);
 }
 
 // ---------- Guestbook ----------
@@ -776,6 +796,244 @@ async function getIlchon() {
   }));
 }
 
+// ---------- Acorn Square (Groups) ----------
+
+async function createGroup(name, description) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  // Generate a code via the database function
+  const { data: codeData, error: codeErr } = await sb.rpc('generate_invite_code');
+  if (codeErr) throw codeErr;
+
+  const code = codeData;
+
+  const { data: group, error: groupErr } = await sb
+    .from('groups')
+    .insert([{
+      code,
+      name,
+      description: description || '',
+      creator_id: me.id
+    }])
+    .select()
+    .single();
+
+  if (groupErr) throw groupErr;
+
+  // Auto-join the creator
+  const { error: joinErr } = await sb
+    .from('group_members')
+    .insert([{ group_id: group.id, user_id: me.id }]);
+
+  if (joinErr) throw joinErr;
+
+  return group;
+}
+
+async function joinGroupByCode(code) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const trimmed = String(code).trim().toUpperCase();
+
+  const { data: group, error: groupErr } = await sb
+    .from('groups')
+    .select('*')
+    .eq('code', trimmed)
+    .maybeSingle();
+
+  if (groupErr || !group) throw new Error('그런 코드를 찾을 수 없어요');
+
+  // Check if already a member
+  const { data: existing } = await sb
+    .from('group_members')
+    .select('*')
+    .eq('group_id', group.id)
+    .eq('user_id', me.id)
+    .maybeSingle();
+
+  if (existing) return group;
+
+  // Check member count
+  const { count, error: countErr } = await sb
+    .from('group_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('group_id', group.id);
+
+  if (countErr) throw countErr;
+  if ((count || 0) >= group.max_members) {
+    throw new Error('이 방은 이미 가득 찼어요 (' + group.max_members + '명까지)');
+  }
+
+  const { error: joinErr } = await sb
+    .from('group_members')
+    .insert([{ group_id: group.id, user_id: me.id }]);
+
+  if (joinErr) throw joinErr;
+
+  return group;
+}
+
+async function getMyGroups() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data: memberships, error: memErr } = await sb
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', me.id);
+
+  if (memErr || !memberships.length) return [];
+
+  const groupIds = memberships.map((m) => m.group_id);
+
+  const { data: groups, error: groupErr } = await sb
+    .from('groups')
+    .select('*')
+    .in('id', groupIds)
+    .order('created_at', { ascending: false });
+
+  if (groupErr) return [];
+
+  // For each group, fetch member count
+  const enriched = await Promise.all(groups.map(async (g) => {
+    const { count } = await sb
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', g.id);
+
+    const { count: entryCount } = await sb
+      .from('group_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', g.id);
+
+    return {
+      ...g,
+      member_count: count || 0,
+      entry_count: entryCount || 0
+    };
+  }));
+
+  return enriched;
+}
+
+async function getGroupById(groupId) {
+  const { data, error } = await sb
+    .from('groups')
+    .select('*')
+    .eq('id', groupId)
+    .maybeSingle();
+
+  if (error) return null;
+  return data;
+}
+
+async function getGroupMembers(groupId) {
+  const { data, error } = await sb
+    .from('group_members')
+    .select('user_id, joined_at')
+    .eq('group_id', groupId);
+
+  if (error) return [];
+
+  const userIds = data.map((m) => m.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: profiles } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me, mini_me_bg, status_message')
+    .in('id', userIds);
+
+  const map = {};
+  (profiles || []).forEach((p) => { map[p.id] = p; });
+
+  return data.map((m) => ({
+    ...map[m.user_id],
+    joined_at: m.joined_at
+  })).filter((m) => m.dotori_id);
+}
+
+async function leaveGroup(groupId) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  const { error } = await sb
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', me.id);
+
+  return !error;
+}
+
+async function deleteGroup(groupId) {
+  const me = await getProfile();
+  if (!me) return false;
+
+  const { data: group } = await sb
+    .from('groups')
+    .select('creator_id')
+    .eq('id', groupId)
+    .maybeSingle();
+
+  if (!group || group.creator_id !== me.id) return false;
+
+  const { error } = await sb.from('groups').delete().eq('id', groupId);
+  return !error;
+}
+
+async function getGroupEntries(groupId, limit = 100) {
+  const { data, error } = await sb
+    .from('group_entries')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+
+  const authorIds = [...new Set(data.map((e) => e.author_id))];
+  const { data: authors } = await sb
+    .from('profiles')
+    .select('id, dotori_id, nickname, mini_me, mini_me_bg')
+    .in('id', authorIds);
+
+  const map = {};
+  (authors || []).forEach((a) => { map[a.id] = a; });
+
+  return data.map((e) => ({
+    ...e,
+    author: map[e.author_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+  }));
+}
+
+async function postGroupEntry(groupId, message) {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const { data, error } = await sb
+    .from('group_entries')
+    .insert([{
+      group_id: groupId,
+      author_id: me.id,
+      message
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function deleteGroupEntry(entryId) {
+  const { error } = await sb
+    .from('group_entries')
+    .delete()
+    .eq('id', entryId);
+  return !error;
+}
+
 // ---------- Photos ----------
 
 async function uploadPhoto(file, caption) {
@@ -915,16 +1173,30 @@ function subscribeToReactions(callback) {
   return channel;
 }
 
+function subscribeToGroupEntries(groupId, callback) {
+  const channel = sb
+    .channel('group-entries-' + groupId)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'group_entries',
+      filter: `group_id=eq.${groupId}`
+    }, (payload) => callback(payload))
+    .subscribe();
+  return channel;
+}
+
 // ---------- Expose ----------
 
 window.DotoriSupabase = {
   MAX_ILCHON,
+  MAX_GROUP_MEMBERS,
   REACTION_EMOJIS,
 
   createAcorn, loadAcorn, loginByDotoriId, getMyAcorn, getSession, logout,
   getProfile, getProfileById, getProfileByDotoriId, updateProfile,
   getTastes, updateTastes,
-  getRoom, saveRoom,
+  getRoom, getRoomByDotoriId, saveMyRoom, saveRoom,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,
@@ -937,8 +1209,11 @@ window.DotoriSupabase = {
   sendFriendRequest, getPendingRequests,
   acceptFriendRequest, declineFriendRequest, getIlchon,
 
+  createGroup, joinGroupByCode, getMyGroups, getGroupById, getGroupMembers,
+  leaveGroup, deleteGroup, getGroupEntries, postGroupEntry, deleteGroupEntry,
+
   uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
 
   subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos,
-  subscribeToMyNotes, subscribeToReactions
+  subscribeToMyNotes, subscribeToReactions, subscribeToGroupEntries
 };
