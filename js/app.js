@@ -80,11 +80,17 @@ async function renderHome(profile) {
   const nameEl = document.getElementById('mini-me-name');
   if (nameEl) nameEl.textContent = profile.nickname;
 
-  const statusEl = document.getElementById('mini-me-status');
-  const statusDisplay = document.getElementById('status-display');
-  const status = profile.status_message || '오늘도 화이팅 ♡';
-  if (statusEl) statusEl.textContent = status;
-  if (statusDisplay) statusDisplay.textContent = status;
+  // Birthday display (home page)
+  const birthdayEl = document.getElementById('mini-me-birthday');
+  if (birthdayEl) {
+    if (profile.birthday) {
+      const parts = profile.birthday.split('-');
+      birthdayEl.textContent = `🎂 ${parseInt(parts[0])}월 ${parseInt(parts[1])}일`;
+      birthdayEl.classList.remove('hidden');
+    } else {
+      birthdayEl.classList.add('hidden');
+    }
+  }
 
   const dateEl = document.getElementById('header-date');
   if (dateEl) dateEl.textContent = '2008년 3월 14일';
@@ -486,6 +492,10 @@ async function openVisitModal(profile) {
         <div class="visit-info">
           <div class="visit-name">${escapeHtml(profile.nickname)}</div>
           <div class="visit-status">${escapeHtml(profile.status_message || '')}</div>
+          ${profile.birthday ? (() => {
+            const parts = profile.birthday.split('-');
+            return `<div class="visit-birthday">🎂 ${parseInt(parts[0])}월 ${parseInt(parts[1])}일</div>`;
+          })() : ''}
         </div>
       </div>
 

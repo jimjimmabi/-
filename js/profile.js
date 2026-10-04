@@ -56,6 +56,26 @@ async function openProfileEditor() {
 
       <label>미니미 배경</label>
       <div class="bg-options">${bgBtns}</div>
+
+      <label>생일 <span class="hint">선택사항</span></label>
+      <div class="birthday-inputs">
+        <select id="edit-birthday-month" class="editor-input birthday-select">
+          <option value="">월</option>
+          ${Array.from({length: 12}, (_, i) => i + 1).map((m) => {
+            const monthStr = String(m).padStart(2, '0');
+            const isSelected = profile.birthday && profile.birthday.startsWith(monthStr + '-');
+            return `<option value="${monthStr}" ${isSelected ? 'selected' : ''}>${m}월</option>`;
+          }).join('')}
+        </select>
+        <select id="edit-birthday-day" class="editor-input birthday-select">
+          <option value="">일</option>
+          ${Array.from({length: 31}, (_, i) => i + 1).map((d) => {
+            const dayStr = String(d).padStart(2, '0');
+            const isSelected = profile.birthday && profile.birthday.endsWith('-' + dayStr);
+            return `<option value="${dayStr}" ${isSelected ? 'selected' : ''}>${d}일</option>`;
+          }).join('')}
+        </select>
+      </div>
     </div>`,
     [
       { label: '취소', onClick: closeModal },
@@ -66,11 +86,16 @@ async function openProfileEditor() {
         const activeEmoji = document.querySelector('.mini-me-option.active');
         const activeBg = document.querySelector('.bg-option.active');
 
+        const monthVal = document.getElementById('edit-birthday-month').value;
+        const dayVal = document.getElementById('edit-birthday-day').value;
+        const birthday = (monthVal && dayVal) ? `${monthVal}-${dayVal}` : null;
+
         try {
           await DotoriStorage.updateProfile({
             nickname: nickname,
             mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
-            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg
+            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg,
+            birthday: birthday
           });
 
           closeModal();

@@ -1995,3 +1995,38 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   font-size: 12px;
   line-height: 1;
 }
+
+/* ============================================
+   Birthday (isolated)
+   ============================================ */
+
+/* ---------- Home page birthday line ---------- */
+.mini-me-birthday {
+  font-size: 10px;
+  color: var(--pink-dark);
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+
+.mini-me-birthday.hidden {
+  display: none;
+}
+
+/* ---------- Visit modal birthday line ---------- */
+.visit-birthday {
+  font-size: 11px;
+  color: var(--pink-dark);
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+
+/* ---------- Profile editor: month + day dropdowns ---------- */
+.birthday-inputs {
+  display: flex;
+  gap: 6px;
+}
+
+.birthday-inputs .birthday-select {
+  flex: 1;
+  min-width: 0;
+}
