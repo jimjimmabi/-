@@ -271,23 +271,41 @@ async function openConversationWith(dotoriId, nickname, miniMe) {
   }
 
   const relevant = [];
+  let miniMeImageUrl = null;
 
   (inbox || []).forEach((n) => {
     const s = n.sender || {};
-    if (s.dotori_id === dotoriId) relevant.push({ ...n, direction: 'received' });
+    if (s.dotori_id === dotoriId) {
+      relevant.push({ ...n, direction: 'received' });
+      if (s.mini_me_image_url) miniMeImageUrl = s.mini_me_image_url;
+    }
   });
 
   (sent || []).forEach((n) => {
     const r = n.recipient || {};
-    if (r.dotori_id === dotoriId) relevant.push({ ...n, direction: 'sent' });
+    if (r.dotori_id === dotoriId) {
+      relevant.push({ ...n, direction: 'sent' });
+      if (r.mini_me_image_url) miniMeImageUrl = r.mini_me_image_url;
+    }
   });
 
   relevant.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  // If we didn't find the image from the notes, look up the profile directly
+  if (!miniMeImageUrl) {
+    try {
+      const profile = await DotoriStorage.getProfileByDotoriId(dotoriId);
+      if (profile && profile.mini_me_image_url) {
+        miniMeImageUrl = profile.mini_me_image_url;
+      }
+    } catch (e) {}
+  }
 
   const conv = {
     dotori_id: dotoriId,
     nickname: nickname,
     mini_me: miniMe,
+    mini_me_image_url: miniMeImageUrl,
     notes: relevant,
     unread: 0,
     lastAt: relevant.length ? new Date(relevant[relevant.length - 1].created_at).getTime() : 0
