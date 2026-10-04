@@ -359,6 +359,21 @@ async function saveMyRoom(room) {
   return !error;
 }
 
+async function saveMyBGM(choiceId) {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await sb
+    .from('rooms')
+    .update({
+      bgm_choice: choiceId || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', user.id);
+
+  return !error;
+}
+
 async function saveRoom(room) {
   return saveMyRoom(room);
 }
@@ -1291,7 +1306,7 @@ window.DotoriSupabase = {
   getProfile, getProfileById, getProfileByDotoriId, updateProfile,
   isNicknameTaken, suggestNicknames,
   getTastes, updateTastes,
-  getRoom, getRoomByDotoriId, saveMyRoom, saveRoom,
+  getRoom, getRoomByDotoriId, saveMyRoom, saveMyBGM, saveRoom,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,

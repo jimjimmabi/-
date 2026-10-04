@@ -318,25 +318,6 @@ function initHeaderButtons() {
   if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
 }
 
-// ---------- BGM ----------
-
-function initBGM() {
-  const playBtn = document.getElementById('bgm-play-btn');
-  const selectBtn = document.getElementById('bgm-select-btn');
-
-  if (playBtn) playBtn.addEventListener('click', () => {
-    showModal('BGM', 'BGM 기능은 나중에 추가됩니다.', [
-      { label: '확인', primary: true, onClick: closeModal }
-    ]);
-  });
-
-  if (selectBtn) selectBtn.addEventListener('click', () => {
-    showModal('BGM 설정', 'BGM 목록은 나중에 추가됩니다.', [
-      { label: '확인', primary: true, onClick: closeModal }
-    ]);
-  });
-}
-
 // ---------- Time Capsule ----------
 
 function initTimeCapsule() {
@@ -552,8 +533,21 @@ async function openVisitModal(profile) {
     }
   }, 60);
 
+  // Visitor BGM
+  setTimeout(() => {
+    if (typeof initVisitorBGM === 'function') {
+      initVisitorBGM(profile);
+    }
+  }, 80);
+
   setTimeout(() => {
     const noteBtn = document.getElementById('visit-note-btn');
+    if (noteBtn) {
+      noteBtn.addEventListener('click', () => {
+        closeModal();
+        openNoteWriter(profile.dotori_id, profile.nickname);
+      });
+    }
     if (noteBtn) {
       noteBtn.addEventListener('click', () => {
         closeModal();
