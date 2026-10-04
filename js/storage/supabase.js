@@ -471,7 +471,7 @@ function getVisits() {
 async function getAllProfiles() {
   const { data, error } = await sb
     .from('profiles')
-    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, created_at')
+    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, birthday, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 

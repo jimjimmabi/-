@@ -67,24 +67,17 @@ function initTabs() {
 
 // ---------- Home rendering ----------
 
-async function renderHome(profile) {
-  if (!profile) profile = await DotoriStorage.getProfile();
-  if (!profile) return;
-
-  const miniMeBox = document.getElementById('mini-me-box');
-  if (miniMeBox) {
-    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
-    miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
+  // Birthday display
+  const birthdayEl = document.getElementById('mini-me-birthday');
+  if (birthdayEl) {
+    if (profile.birthday) {
+      const [mm, dd] = profile.birthday.split('-');
+      birthdayEl.textContent = `🎂 ${parseInt(mm)}월 ${parseInt(dd)}일`;
+      birthdayEl.classList.remove('hidden');
+    } else {
+      birthdayEl.classList.add('hidden');
+    }
   }
-
-  const nameEl = document.getElementById('mini-me-name');
-  if (nameEl) nameEl.textContent = profile.nickname;
-
-  const statusEl = document.getElementById('mini-me-status');
-  const statusDisplay = document.getElementById('status-display');
-  const status = profile.status_message || '오늘도 화이팅 ♡';
-  if (statusEl) statusEl.textContent = status;
-  if (statusDisplay) statusDisplay.textContent = status;
 
   const dateEl = document.getElementById('header-date');
   if (dateEl) dateEl.textContent = '2008년 3월 14일';
@@ -486,6 +479,7 @@ async function openVisitModal(profile) {
         <div class="visit-info">
           <div class="visit-name">${escapeHtml(profile.nickname)}</div>
           <div class="visit-status">${escapeHtml(profile.status_message || '')}</div>
+          ${profile.birthday ? `<div class="visit-birthday">🎂 ${parseInt(profile.birthday.split('-')[0])}월 ${parseInt(profile.birthday.split('-')[1])}일</div>` : ''}
         </div>
       </div>
 
