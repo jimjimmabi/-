@@ -32,7 +32,6 @@ async function initTasteTab() {
         <button class="filter-chip" data-filter="interests">관심사</button>
         <button class="filter-chip" data-filter="music">음악</button>
         <button class="filter-chip" data-filter="mood">감성</button>
-        <button class="filter-chip" data-filter="birthday">🎂 같은 달 생일</button>
       </div>
 
       <div id="taste-list" class="taste-list">
@@ -118,20 +117,7 @@ function renderTasteList() {
     });
   }
 
-  if (tasteActiveFilter === 'birthday') {
-    // Filter: same birth month as me
-    const myBirthday = tasteMyProfile && tasteMyProfile.birthday;
-    if (myBirthday) {
-      const myMonth = myBirthday.split('-')[0];
-      filtered = filtered.filter((p) => {
-        if (!p.birthday) return false;
-        return p.birthday.split('-')[0] === myMonth;
-      });
-    } else {
-      // User hasn't set their birthday yet
-      filtered = [];
-    }
-  } else if (tasteActiveFilter !== 'all') {
+  if (tasteActiveFilter !== 'all') {
     filtered = filtered.filter((p) => {
       const t = p.tastes || {};
       const arr = t[tasteActiveFilter];
@@ -186,17 +172,7 @@ function renderTasteCard(profile) {
       </div>
     </div>
     <div class="taste-card-right">
-      <div class="taste-card-name">
-        ${escapeHtml(profile.nickname)}
-        ${(() => {
-          const myBirthday = tasteMyProfile && tasteMyProfile.birthday;
-          if (!myBirthday || !profile.birthday) return '';
-          if (myBirthday.split('-')[0] === profile.birthday.split('-')[0]) {
-            return '<span class="taste-birthday-badge" title="같은 달 생일">🎂</span>';
-          }
-          return '';
-        })()}
-      </div>
+      <div class="taste-card-name">${escapeHtml(profile.nickname)}</div>
       <div class="taste-card-status">${escapeHtml(profile.status_message || '')}</div>
       ${tags.length ? `<div class="taste-tags">${tags.map((tag) => `<span class="taste-tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
       ${t.needs ? `<div class="taste-needs-line">"${escapeHtml(t.needs)}"</div>` : ''}

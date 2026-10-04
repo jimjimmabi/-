@@ -66,16 +66,11 @@ async function openProfileEditor() {
         const activeEmoji = document.querySelector('.mini-me-option.active');
         const activeBg = document.querySelector('.bg-option.active');
 
-        const monthVal = document.getElementById('edit-birthday-month').value;
-        const dayVal = document.getElementById('edit-birthday-day').value;
-        const birthday = (monthVal && dayVal) ? `${monthVal}-${dayVal}` : null;
-
         try {
           await DotoriStorage.updateProfile({
             nickname: nickname,
             mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
-            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg,
-            birthday: birthday
+            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg
           });
 
           closeModal();
