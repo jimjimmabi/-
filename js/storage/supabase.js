@@ -1291,7 +1291,7 @@ window.DotoriSupabase = {
   getProfile, getProfileById, getProfileByDotoriId, updateProfile,
   isNicknameTaken, suggestNicknames,
   getTastes, updateTastes,
-  getRoom, getRoomByDotoriId, saveMyRoom, saveRoom,
+  getRoom, getRoomByDotoriId, saveMyRoom, saveMyBGM, saveRoom,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,

@@ -537,6 +537,13 @@ async function openVisitModal(profile) {
     }
   }, 60);
 
+  // Visitor BGM
+  setTimeout(() => {
+    if (typeof initVisitorBGM === 'function') {
+      initVisitorBGM(profile);
+    }
+  }, 80);
+
   setTimeout(() => {
     const noteBtn = document.getElementById('visit-note-btn');
     if (noteBtn) {
