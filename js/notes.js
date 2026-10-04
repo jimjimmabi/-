@@ -51,7 +51,6 @@ async function renderConversationList() {
         dotori_id: other.dotori_id,
         nickname: other.nickname || '익명',
         mini_me: other.mini_me || '🌰',
-        mini_me_image_url: other.mini_me_image_url || null,
         notes: [],
         unread: 0,
         lastAt: 0
@@ -71,6 +70,7 @@ async function renderConversationList() {
         dotori_id: other.dotori_id,
         nickname: other.nickname || '익명',
         mini_me: other.mini_me || '🌰',
+        mini_me_image_url: other.mini_me_image_url || null,
         notes: [],
         unread: 0,
         lastAt: 0
