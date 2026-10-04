@@ -2054,3 +2054,76 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   padding: 6px 8px;
   font-size: 12px;
 }
+
+/* ============================================
+   Mini-Me Image (uploaded avatar)
+   ============================================ */
+
+.mini-me-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 3px;
+  display: block;
+}
+
+/* Profile editor preview */
+.mini-me-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.mini-me-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 5px;
+  display: block;
+}
+
+.mini-me-preview-emoji {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.mini-me-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.mini-me-preview-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Rounded corners per context */
+.mini-me-box .mini-me-image,
+.toast-avatar .mini-me-image {
+  border-radius: 3px;
+}
+
+.taste-avatar .mini-me-image,
+.friend-item-avatar .mini-me-image,
+.friend-request-avatar .mini-me-image,
+.chat-header-avatar .mini-me-image,
+.inbox-conv-avatar .mini-me-image {
+  border-radius: 5px;
+}
+
+.visit-mini-me .mini-me-image {
+  border-radius: 7px;
+}

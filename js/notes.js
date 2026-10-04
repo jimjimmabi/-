@@ -51,6 +51,7 @@ async function renderConversationList() {
         dotori_id: other.dotori_id,
         nickname: other.nickname || '익명',
         mini_me: other.mini_me || '🌰',
+        mini_me_image_url: other.mini_me_image_url || null,
         notes: [],
         unread: 0,
         lastAt: 0
@@ -102,7 +103,11 @@ async function renderConversationList() {
     const div = document.createElement('div');
     div.className = 'inbox-conv' + (conv.unread > 0 ? ' unread' : '');
     div.innerHTML = `
-      <div class="inbox-conv-avatar">${conv.mini_me}</div>
+      <div class="inbox-conv-avatar">
+        ${conv.mini_me_image_url
+          ? `<img src="${conv.mini_me_image_url}" alt="" class="mini-me-image">`
+          : conv.mini_me}
+      </div>
       <div class="inbox-conv-main">
         <div class="inbox-conv-header">
           <strong>${escapeHtml(conv.nickname)}</strong>
@@ -182,7 +187,11 @@ function renderConversationModal(conv) {
   showModal(`💌 ${conv.nickname}`,
     `<div class="chat-window">
       <div class="${headerClass}">
-        <div class="chat-header-avatar"${activeIsFriend ? ' data-friend="1"' : ''}>${conv.mini_me}</div>
+        <div class="chat-header-avatar"${activeIsFriend ? ' data-friend="1"' : ''}>
+          ${conv.mini_me_image_url
+            ? `<img src="${conv.mini_me_image_url}" alt="" class="mini-me-image">`
+            : conv.mini_me}
+        </div>
         <div class="chat-header-name">
           ${escapeHtml(conv.nickname)}
           ${friendBadgeHtml}

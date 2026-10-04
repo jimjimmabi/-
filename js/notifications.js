@@ -79,6 +79,7 @@ function setupGlobalNoteSubscription() {
 
       showToast({
         mini_me: sender.mini_me || '🌰',
+        mini_me_image_url: sender.mini_me_image_url || null,
         title: `${sender.nickname}님의 쪽지`,
         body: truncate(newNote.message, 60),
         onClick: () => {
@@ -133,6 +134,7 @@ function setupGlobalReactionSubscription() {
       // Show toast
       showToast({
         mini_me: reactor.mini_me || '🌰',
+        mini_me_image_url: reactor.mini_me_image_url || null,
         title: `${reactor.nickname}님이 반응했어요`,
         body: `${reaction.emoji} — "${truncate(note.message, 40)}"`,
         onClick: () => {
@@ -159,7 +161,7 @@ function setupGlobalReactionSubscription() {
 
 // ---------- Toast (speech bubble with avatar) ----------
 
-function showToast({ mini_me, title, body, onClick }) {
+function showToast({ mini_me, mini_me_image_url, title, body, onClick }) {
   const container = document.getElementById('toast-container');
   if (!container) {
     console.warn('No toast container');
@@ -170,7 +172,11 @@ function showToast({ mini_me, title, body, onClick }) {
   toast.className = 'toast';
   toast.innerHTML = `
     <div class="toast-avatar-wrap">
-      <div class="toast-avatar">${mini_me || '🌰'}</div>
+      <div class="toast-avatar">
+        ${mini_me_image_url
+          ? `<img src="${mini_me_image_url}" alt="" class="mini-me-image">`
+          : (mini_me || '🌰')}
+      </div>
       <div class="toast-tail"></div>
     </div>
     <div class="toast-bubble">

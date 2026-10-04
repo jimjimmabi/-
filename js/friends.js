@@ -146,7 +146,11 @@ function renderFriendRequest(req) {
   const s = req.sender || {};
 
   div.innerHTML = `
-    <div class="friend-request-avatar">${s.mini_me || '🌰'}</div>
+    <div class="friend-request-avatar" style="${s.mini_me_bg ? `background:${s.mini_me_bg};` : ''}">
+      ${s.mini_me_image_url
+        ? `<img src="${s.mini_me_image_url}" alt="" class="mini-me-image">`
+        : (s.mini_me || '🌰')}
+    </div>
     <div class="friend-request-main">
       <div class="friend-request-name">${escapeHtml(s.nickname || '익명')}</div>
       <div class="friend-request-status">${escapeHtml(s.status_message || '')}</div>
@@ -216,7 +220,9 @@ function renderFriendItem(friend) {
 
   div.innerHTML = `
     <div class="friend-item-avatar" style="background:${friend.mini_me_bg || '#EAF6FF'};">
-      ${friend.mini_me || '🌰'}
+      ${friend.mini_me_image_url
+        ? `<img src="${friend.mini_me_image_url}" alt="" class="mini-me-image">`
+        : (friend.mini_me || '🌰')}
     </div>
     <div class="friend-item-main">
       <div class="friend-item-name">${escapeHtml(friend.nickname)}</div>

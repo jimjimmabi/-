@@ -252,7 +252,9 @@ function renderTasteCard(profile) {
   card.innerHTML = `
     <div class="taste-card-left">
       <div class="taste-avatar" style="background:${profile.mini_me_bg || '#EAF6FF'};">
-        ${profile.mini_me || '🌰'}
+        ${profile.mini_me_image_url
+          ? `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-image">`
+          : (profile.mini_me || '🌰')}
       </div>
     </div>
     <div class="taste-card-right">

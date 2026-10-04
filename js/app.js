@@ -73,7 +73,11 @@ async function renderHome(profile) {
 
   const miniMeBox = document.getElementById('mini-me-box');
   if (miniMeBox) {
-    miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
+    if (profile.mini_me_image_url) {
+      miniMeBox.innerHTML = `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-image">`;
+    } else {
+      miniMeBox.innerHTML = `<span class="mini-me-emoji">${profile.mini_me || '🌰'}</span>`;
+    }
     miniMeBox.style.background = profile.mini_me_bg || '#EAF6FF';
   }
 
@@ -487,7 +491,9 @@ async function openVisitModal(profile) {
     `<div class="visit-modal">
       <div class="visit-modal-header">
         <div class="visit-mini-me" style="background:${profile.mini_me_bg || '#EAF6FF'};">
-          ${profile.mini_me || '🌰'}
+          ${profile.mini_me_image_url
+            ? `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-image">`
+            : (profile.mini_me || '🌰')}
         </div>
         <div class="visit-info">
           <div class="visit-name">${escapeHtml(profile.nickname)}</div>
@@ -552,12 +558,6 @@ async function openVisitModal(profile) {
 
   setTimeout(() => {
     const noteBtn = document.getElementById('visit-note-btn');
-    if (noteBtn) {
-      noteBtn.addEventListener('click', () => {
-        closeModal();
-        openNoteWriter(profile.dotori_id, profile.nickname);
-      });
-    }
     if (noteBtn) {
       noteBtn.addEventListener('click', () => {
         closeModal();

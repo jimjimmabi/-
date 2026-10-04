@@ -471,7 +471,7 @@ function getVisits() {
 async function getAllProfiles() {
   const { data, error } = await sb
     .from('profiles')
-    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, created_at')
+    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, mini_me_image_url, tastes, birthday, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -481,7 +481,7 @@ async function getAllProfiles() {
 
 // ---------- Match Score ----------
 
-function calculateMatch(myTastes, theirTastes) {
+function calculateMatch(myTastes, theirTastes, myBirthday, theirBirthday) {
   if (!myTastes || !theirTastes) return { score: 0, reasons: [] };
 
   let score = 0;
@@ -527,6 +527,17 @@ function calculateMatch(myTastes, theirTastes) {
     if (keywords.some((k) => theirCurrently.includes(k))) {
       score += 10;
       reasons.push('지금 필요한 것이 맞아요');
+    }
+  }
+
+  // Birthday matching
+  if (myBirthday && theirBirthday) {
+    if (myBirthday === theirBirthday) {
+      score += 15;
+      reasons.push('같은 날 생일 🎂');
+    } else if (myBirthday.split('-')[0] === theirBirthday.split('-')[0]) {
+      score += 8;
+      reasons.push('같은 달 생일 🎂');
     }
   }
 
@@ -590,7 +601,7 @@ async function getInbox() {
   const senderIds = [...new Set(data.map((n) => n.sender_id))];
   const { data: senders } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me')
+    .select('id, dotori_id, nickname, mini_me, mini_me_image_url')
     .in('id', senderIds);
 
   const map = {};
@@ -617,7 +628,7 @@ async function getSentNotes() {
   const recipientIds = [...new Set(data.map((n) => n.recipient_id))];
   const { data: recipients } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me')
+    .select('id, dotori_id, nickname, mini_me, mini_me_image_url')
     .in('id', recipientIds);
 
   const map = {};
@@ -835,7 +846,7 @@ async function getPendingRequests() {
   const senderIds = [...new Set(data.map((r) => r.sender_id))];
   const { data: senders } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me, status_message')
+    .select('id, dotori_id, nickname, mini_me, mini_me_bg, mini_me_image_url, status_message')
     .in('id', senderIds);
 
   const map = {};
@@ -901,7 +912,7 @@ async function getIlchon() {
 
   const { data: friends } = await sb
     .from('profiles')
-    .select('id, dotori_id, nickname, mini_me, mini_me_bg, status_message')
+    .select('id, dotori_id, nickname, mini_me, mini_me_bg, mini_me_image_url, status_message')
     .in('id', friendIds);
 
   return (friends || []).map((f) => ({
