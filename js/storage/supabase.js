@@ -170,6 +170,7 @@ async function logout() {
 // ---------- Profile ----------
 
 async function getProfile() {
+  // Prefer the saved dotori_my_id — it's the real identity
   const myId = localStorage.getItem('dotori_my_id');
   if (myId) {
     const { data, error } = await sb
@@ -181,6 +182,7 @@ async function getProfile() {
     if (!error && data) return data;
   }
 
+  // Fallback: use the current auth user
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;
 
@@ -259,8 +261,12 @@ async function suggestNicknames(base, count) {
 
   const suggestions = [];
   const seen = new Set();
+
+  // Strategy 1: cute seasonal/forest words after the name
   const suffixes = ['_숲', '_forest', '_2008', '_acorn', '님', '_🌰'];
 
+  // Strategy 2: numbers 1-99 appended
+  // Strategy 3: with a small dot between
   const templates = [
     (b) => `${b}${Math.floor(Math.random() * 89) + 10}`,
     (b) => `${b}${Math.floor(Math.random() * 899) + 100}`,
@@ -269,17 +275,23 @@ async function suggestNicknames(base, count) {
     (b) => `${b}_${Math.floor(Math.random() * 89) + 10}`
   ];
 
+  // Try up to 30 attempts to find `count` free nicknames
   for (let attempt = 0; attempt < 30 && suggestions.length < count; attempt++) {
     const template = templates[Math.floor(Math.random() * templates.length)];
     let candidate = template(cleanBase);
+
+    // Trim if too long (12 char max)
     if (candidate.length > 12) candidate = candidate.slice(0, 12);
+
     if (seen.has(candidate)) continue;
     seen.add(candidate);
 
     try {
       const taken = await isNicknameTaken(candidate);
       if (!taken) suggestions.push(candidate);
-    } catch (e) {}
+    } catch (e) {
+      // ignore individual lookup errors
+    }
   }
 
   return suggestions;
@@ -459,7 +471,7 @@ function getVisits() {
 async function getAllProfiles() {
   const { data, error } = await sb
     .from('profiles')
-    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, birthday, created_at')
+    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, tastes, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -469,7 +481,7 @@ async function getAllProfiles() {
 
 // ---------- Match Score ----------
 
-function calculateMatch(myTastes, theirTastes, myBirthday, theirBirthday) {
+function calculateMatch(myTastes, theirTastes) {
   if (!myTastes || !theirTastes) return { score: 0, reasons: [] };
 
   let score = 0;
@@ -515,17 +527,6 @@ function calculateMatch(myTastes, theirTastes, myBirthday, theirBirthday) {
     if (keywords.some((k) => theirCurrently.includes(k))) {
       score += 10;
       reasons.push('지금 필요한 것이 맞아요');
-    }
-  }
-
-  // Birthday matching
-  if (myBirthday && theirBirthday) {
-    if (myBirthday === theirBirthday) {
-      score += 15;
-      reasons.push('같은 날 생일 🎂');
-    } else if (myBirthday.split('-')[0] === theirBirthday.split('-')[0]) {
-      score += 8;
-      reasons.push('같은 달 생일 🎂');
     }
   }
 
@@ -1143,6 +1144,66 @@ async function deleteGroupEntry(entryId) {
 }
 
 // ---------- Photos ----------
+async function uploadAvatar(file) {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error('로그인이 필요해요');
+
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const filename = `${me.id}/avatar-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await sb.storage
+    .from('avatars')
+    .upload(filename, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data: urlData } = sb.storage.from('avatars').getPublicUrl(filename);
+
+  const { data, error } = await sb
+    .from('profiles')
+    .update({ mini_me_image_url: urlData.publicUrl })
+    .eq('id', me.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function clearAvatar() {
+  const me = await getProfile();
+  if (!me) throw new Error('내 정보를 찾을 수 없어요');
+
+  // Try to delete the old file from storage (best-effort)
+  if (me.mini_me_image_url) {
+    try {
+      const url = new URL(me.mini_me_image_url);
+      const path = url.pathname.split('/avatars/')[1];
+      if (path) {
+        await sb.storage.from('avatars').remove([path]);
+      }
+    } catch (e) {
+      console.warn('Could not delete old avatar file:', e);
+    }
+  }
+
+  const { data, error } = await sb
+    .from('profiles')
+    .update({ mini_me_image_url: null })
+    .eq('id', me.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
 
 async function uploadPhoto(file, caption) {
   const { data: { user } } = await sb.auth.getUser();
@@ -1322,6 +1383,7 @@ window.DotoriSupabase = {
   leaveGroup, deleteGroup, getGroupEntries, postGroupEntry, deleteGroupEntry,
 
   uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
+  uploadAvatar, clearAvatar,
 
   subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos,
   subscribeToMyNotes, subscribeToReactions, subscribeToGroupEntries

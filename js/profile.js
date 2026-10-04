@@ -35,7 +35,7 @@ async function openProfileEditor() {
   if (!profile) return;
 
   const miniMeBtns = MINI_ME_OPTIONS.map((emoji) => {
-    const isActive = profile.mini_me === emoji;
+    const isActive = !profile.mini_me_image_url && profile.mini_me === emoji;
     return `<button class="mini-me-option ${isActive ? 'active' : ''}" data-emoji="${emoji}">${emoji}</button>`;
   }).join('');
 
@@ -46,13 +46,36 @@ async function openProfileEditor() {
       title="${bg.name}"></button>`;
   }).join('');
 
+  // Preview: image if set, emoji otherwise
+  const hasImage = !!profile.mini_me_image_url;
+  const previewHtml = hasImage
+    ? `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-preview-img">`
+    : `<span class="mini-me-preview-emoji">${profile.mini_me || '🌰'}</span>`;
+
+  const modeButtons = hasImage
+    ? `<button type="button" class="small-btn" id="clear-avatar-btn">✕ 이미지 지우기 (이모지로 돌아가기)</button>`
+    : `<button type="button" class="small-btn primary" id="upload-avatar-btn">📷 이미지 올리기</button>`;
+
   showModal('프로필 수정',
     `<div class="editor-form">
       <label>닉네임</label>
       <input type="text" id="edit-nickname" maxlength="12" value="${escapeHtml(profile.nickname)}" class="editor-input">
 
       <label>미니미</label>
-      <div class="mini-me-options">${miniMeBtns}</div>
+      <div class="mini-me-preview-wrap">
+        <div class="mini-me-preview" style="background:${profile.mini_me_bg || '#EAF6FF'};">
+          ${previewHtml}
+        </div>
+        <div class="mini-me-preview-actions">
+          ${modeButtons}
+          <input type="file" id="avatar-file" accept="image/*" style="display:none;">
+        </div>
+      </div>
+
+      <div id="mini-me-emoji-section" class="${hasImage ? 'hidden' : ''}">
+        <label>이모지 선택</label>
+        <div class="mini-me-options">${miniMeBtns}</div>
+      </div>
 
       <label>미니미 배경</label>
       <div class="bg-options">${bgBtns}</div>
@@ -90,13 +113,19 @@ async function openProfileEditor() {
         const dayVal = document.getElementById('edit-birthday-day').value;
         const birthday = (monthVal && dayVal) ? `${monthVal}-${dayVal}` : null;
 
+        const updates = {
+          nickname: nickname,
+          mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg,
+          birthday: birthday
+        };
+
+        // Only update emoji if the user is in emoji mode
+        if (!profile.mini_me_image_url && activeEmoji) {
+          updates.mini_me = activeEmoji.dataset.emoji;
+        }
+
         try {
-          await DotoriStorage.updateProfile({
-            nickname: nickname,
-            mini_me: activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me,
-            mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg,
-            birthday: birthday
-          });
+          await DotoriStorage.updateProfile(updates);
 
           closeModal();
           const updated = await DotoriStorage.getProfile();
@@ -138,7 +167,6 @@ async function openProfileEditor() {
                 btn.addEventListener('click', () => {
                   const chosen = btn.dataset.nickname;
                   closeModal();
-                  // Reopen the profile editor with the suggestion
                   setTimeout(() => openProfileEditor(), 100);
                 });
               });
@@ -152,18 +180,78 @@ async function openProfileEditor() {
   );
 
   setTimeout(() => {
+    // Mini-me emoji selection
     document.querySelectorAll('.mini-me-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.mini-me-option').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
       });
     });
+
+    // Background selection
     document.querySelectorAll('.bg-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.bg-option').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        // Live-update the preview background
+        const preview = document.querySelector('.mini-me-preview');
+        if (preview) preview.style.background = btn.dataset.bg;
       });
     });
+
+    // Avatar upload
+    const uploadBtn = document.getElementById('upload-avatar-btn');
+    const clearBtn = document.getElementById('clear-avatar-btn');
+    const fileInput = document.getElementById('avatar-file');
+
+    if (uploadBtn && fileInput) {
+      uploadBtn.addEventListener('click', () => fileInput.click());
+
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+          alert('이미지는 2MB 이하만 올릴 수 있어요.');
+          return;
+        }
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = '올리는 중...';
+
+        try {
+          // Compress before upload (same as photos, smaller target)
+          const compressed = await compressImage(file, 400, 0.85);
+          await DotoriStorage.uploadAvatar(compressed);
+          closeModal();
+          const updated = await DotoriStorage.getProfile();
+          await renderHome(updated);
+          // Reopen editor to show the new image
+          setTimeout(() => openProfileEditor(), 100);
+        } catch (err) {
+          console.error('Avatar upload failed:', err);
+          alert('이미지를 올릴 수 없어요: ' + (err.message || ''));
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = '📷 이미지 올리기';
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!confirm('이미지를 지우고 이모지로 돌아갈까요?')) return;
+        try {
+          await DotoriStorage.clearAvatar();
+          closeModal();
+          const updated = await DotoriStorage.getProfile();
+          await renderHome(updated);
+          setTimeout(() => openProfileEditor(), 100);
+        } catch (err) {
+          console.error('Clear avatar failed:', err);
+          alert('지울 수 없어요: ' + (err.message || ''));
+        }
+      });
+    }
   }, 50);
 }
 
