@@ -5,6 +5,7 @@
 let tasteAllProfiles = [];
 let tasteMyProfile = null;
 let tasteSearchTerm = '';
+let tasteBirthdayTerm = '';
 let tasteActiveFilter = 'all';
 
 async function initTasteTab() {
@@ -27,6 +28,12 @@ async function initTasteTab() {
           class="editor-input" autocomplete="off">
       </div>
 
+      <div class="taste-search" style="margin-top:8px;">
+        <input type="text" id="taste-birthday-input"
+          placeholder="🎂 생일로 찾기 (예: 03-14)"
+          class="editor-input" autocomplete="off" maxlength="5">
+      </div>
+
       <div class="taste-filters">
         <button class="filter-chip active" data-filter="all">전체</button>
         <button class="filter-chip" data-filter="interests">관심사</button>
@@ -40,6 +47,7 @@ async function initTasteTab() {
     </div>
   `;
 
+  // Main search input
   const searchInput = document.getElementById('taste-search-input');
   if (searchInput) {
     searchInput.value = tasteSearchTerm;
@@ -49,6 +57,22 @@ async function initTasteTab() {
     });
   }
 
+  // Birthday search input (isolated from taste chips)
+  const birthdayInput = document.getElementById('taste-birthday-input');
+  if (birthdayInput) {
+    birthdayInput.value = tasteBirthdayTerm;
+    birthdayInput.addEventListener('input', (e) => {
+      let raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+      if (raw.length >= 3) {
+        raw = raw.slice(0, 2) + '-' + raw.slice(2);
+      }
+      e.target.value = raw;
+      tasteBirthdayTerm = raw;
+      renderTasteList();
+    });
+  }
+
+  // Filter chips
   container.querySelectorAll('.filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       container.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
@@ -115,6 +139,11 @@ function renderTasteList() {
              favorites.includes(tasteSearchTerm) ||
              needs.includes(tasteSearchTerm);
     });
+  }
+
+  // Birthday filter (search input, isolated from taste chips)
+  if (tasteBirthdayTerm && tasteBirthdayTerm.length === 5) {
+    filtered = filtered.filter((p) => p.birthday === tasteBirthdayTerm);
   }
 
   if (tasteActiveFilter !== 'all') {
