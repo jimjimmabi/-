@@ -34,8 +34,13 @@ async function openProfileEditor() {
   const profile = await DotoriStorage.getProfile();
   if (!profile) return;
 
+  // Which sub-tab is active: 'avatar' or 'pet'
+  // Default: show the tab that matches the current mode
+  let activeTab = profile.mini_me_image_url ? 'avatar' : 'pet';
+
+  // Prepare pet tab content
   const miniMeBtns = MINI_ME_OPTIONS.map((emoji) => {
-    const isActive = !profile.mini_me_image_url && profile.mini_me === emoji;
+    const isActive = profile.mini_me === emoji;
     return `<button class="mini-me-option ${isActive ? 'active' : ''}" data-emoji="${emoji}">${emoji}</button>`;
   }).join('');
 
@@ -46,58 +51,76 @@ async function openProfileEditor() {
       title="${bg.name}"></button>`;
   }).join('');
 
-  // Preview: image if set, emoji otherwise
-  const hasImage = !!profile.mini_me_image_url;
-  const previewHtml = hasImage
-    ? `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-preview-img">`
-    : `<span class="mini-me-preview-emoji">${profile.mini_me || '🌰'}</span>`;
-
-  const modeButtons = hasImage
-    ? `<button type="button" class="small-btn" id="clear-avatar-btn">✕ 이미지 지우기 (이모지로 돌아가기)</button>`
-    : `<button type="button" class="small-btn primary" id="upload-avatar-btn">📷 이미지 올리기</button>`;
+  // Birthday dropdown values
+  const birthdayParts = profile.birthday ? profile.birthday.split('-') : ['', ''];
 
   showModal('프로필 수정',
-    `<div class="editor-form">
+    `<div class="editor-form profile-editor">
       <label>닉네임</label>
-      <input type="text" id="edit-nickname" maxlength="12" value="${escapeHtml(profile.nickname)}" class="editor-input">
+      <input type="text" id="edit-nickname" maxlength="12"
+        value="${escapeHtml(profile.nickname)}" class="editor-input">
 
-      <label>미니미</label>
-      <div class="mini-me-preview-wrap">
-        <div class="mini-me-preview" style="background:${profile.mini_me_bg || '#EAF6FF'};">
-          ${previewHtml}
-        </div>
-        <div class="mini-me-preview-actions">
-          ${modeButtons}
-          <input type="file" id="avatar-file" accept="image/*" style="display:none;">
-        </div>
-      </div>
+      <label>상태 메시지</label>
+      <input type="text" id="edit-status" maxlength="40"
+        value="${escapeHtml(profile.status_message || '')}" class="editor-input">
 
-      <div id="mini-me-emoji-section" class="${hasImage ? 'hidden' : ''}">
-        <label>이모지 선택</label>
-        <div class="mini-me-options">${miniMeBtns}</div>
-      </div>
-
-      <label>미니미 배경</label>
-      <div class="bg-options">${bgBtns}</div>
-
-      <label>생일 <span class="hint">선택사항</span></label>
+      <label>생일 <span class="hint">월·일 (선택사항)</span></label>
       <div class="birthday-inputs">
         <select id="edit-birthday-month" class="editor-input birthday-select">
           <option value="">월</option>
-          ${Array.from({length: 12}, (_, i) => i + 1).map((m) => {
+          ${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
             const monthStr = String(m).padStart(2, '0');
-            const isSelected = profile.birthday && profile.birthday.startsWith(monthStr + '-');
+            const isSelected = birthdayParts[0] === monthStr;
             return `<option value="${monthStr}" ${isSelected ? 'selected' : ''}>${m}월</option>`;
           }).join('')}
         </select>
         <select id="edit-birthday-day" class="editor-input birthday-select">
           <option value="">일</option>
-          ${Array.from({length: 31}, (_, i) => i + 1).map((d) => {
+          ${Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
             const dayStr = String(d).padStart(2, '0');
-            const isSelected = profile.birthday && profile.birthday.endsWith('-' + dayStr);
+            const isSelected = birthdayParts[1] === dayStr;
             return `<option value="${dayStr}" ${isSelected ? 'selected' : ''}>${d}일</option>`;
           }).join('')}
         </select>
+      </div>
+
+      <label style="margin-top:18px;">미니미</label>
+      <div class="profile-subtabs">
+        <button class="profile-subtab ${activeTab === 'avatar' ? 'active' : ''}" data-subtab="avatar">
+          🖼️ 아바타
+        </button>
+        <button class="profile-subtab ${activeTab === 'pet' ? 'active' : ''}" data-subtab="pet">
+          🐱 펫
+        </button>
+      </div>
+
+      <div class="profile-subtab-content ${activeTab === 'avatar' ? 'active' : ''}" data-subtab-content="avatar">
+        <div class="mini-me-preview-wrap">
+          <div class="mini-me-preview" id="avatar-preview" style="background:${profile.mini_me_bg || '#EAF6FF'};">
+            ${profile.mini_me_image_url
+              ? `<img src="${profile.mini_me_image_url}" alt="" class="mini-me-preview-img" id="avatar-preview-img">`
+              : `<span class="mini-me-preview-emoji" id="avatar-preview-emoji">${profile.mini_me || '🌰'}</span>`}
+          </div>
+          <div class="mini-me-preview-actions">
+            <button type="button" class="small-btn" id="upload-avatar-btn">🖼️ 이미지 올리기</button>
+            ${profile.mini_me_image_url
+              ? `<button type="button" class="small-btn" id="clear-avatar-btn">🗑️ 이미지 지우기</button>`
+              : ''}
+          </div>
+          <input type="file" id="avatar-file" accept="image/*" style="display:none;">
+          <p class="hint" style="margin-top:8px; color:#888; font-size:10px; text-align:center;">
+            이미지를 올리면 프로필에 사진이 표시됩니다.<br>
+            지우면 펫 이모지로 돌아가요.
+          </p>
+        </div>
+      </div>
+
+      <div class="profile-subtab-content ${activeTab === 'pet' ? 'active' : ''}" data-subtab-content="pet">
+        <label>펫 선택</label>
+        <div class="mini-me-options">${miniMeBtns}</div>
+
+        <label>배경색</label>
+        <div class="bg-options">${bgBtns}</div>
       </div>
     </div>`,
     [
@@ -106,33 +129,40 @@ async function openProfileEditor() {
         const nickname = document.getElementById('edit-nickname').value.trim();
         if (!nickname) return;
 
-        const activeEmoji = document.querySelector('.mini-me-option.active');
-        const activeBg = document.querySelector('.bg-option.active');
-
+        const statusMessage = document.getElementById('edit-status').value.trim();
         const monthVal = document.getElementById('edit-birthday-month').value;
         const dayVal = document.getElementById('edit-birthday-day').value;
         const birthday = (monthVal && dayVal) ? `${monthVal}-${dayVal}` : null;
 
+        // Build the update object
         const updates = {
           nickname: nickname,
-          mini_me_bg: activeBg ? activeBg.dataset.bg : profile.mini_me_bg,
+          status_message: statusMessage,
           birthday: birthday
         };
 
-        // Only update emoji if the user is in emoji mode
-        if (!profile.mini_me_image_url && activeEmoji) {
-          updates.mini_me = activeEmoji.dataset.emoji;
+        if (activeTab === 'pet') {
+          // Pet tab: pick the emoji + bg, and clear any image
+          const activeEmoji = document.querySelector('.mini-me-option.active');
+          const activeBg = document.querySelector('.bg-option.active');
+
+          updates.mini_me = activeEmoji ? activeEmoji.dataset.emoji : profile.mini_me;
+          updates.mini_me_bg = activeBg ? activeBg.dataset.bg : profile.mini_me_bg;
+          updates.mini_me_image_url = null; // pet choice wins
+        } else {
+          // Avatar tab: keep whatever image state was set by upload/clear
+          // (uploadAvatar/clearAvatar already wrote to the DB directly)
+          // Just preserve the bg if the user didn't change it
+          // No mini_me_image_url update here — the avatar actions handle it
         }
 
         try {
           await DotoriStorage.updateProfile(updates);
-
           closeModal();
           const updated = await DotoriStorage.getProfile();
           await renderHome(updated);
         } catch (err) {
           const isTaken = err && err.message && err.message.includes('닉네임');
-
           if (isTaken) {
             let suggestionsHtml = '';
             try {
@@ -154,14 +184,12 @@ async function openProfileEditor() {
             } catch (e) {
               console.warn('Suggestion failed:', e);
             }
-
             showModal('이미 사용 중인 닉네임이에요',
               `누군가 <strong>${escapeHtml(nickname)}</strong>을(를) 사용하고 있어요.<br>
               <span style="color:#888; font-size:11px;">다른 이름을 골라주세요.</span>
               ${suggestionsHtml}`,
               [{ label: '확인', primary: true, onClick: closeModal }]
             );
-
             setTimeout(() => {
               document.querySelectorAll('.nickname-suggestion-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
@@ -179,8 +207,27 @@ async function openProfileEditor() {
     ]
   );
 
+  // ---------- Wire up after modal opens ----------
+
   setTimeout(() => {
-    // Mini-me emoji selection
+    // Sub-tab switching
+    document.querySelectorAll('.profile-subtab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.subtab;
+        activeTab = target;
+
+        // Toggle active tab button
+        document.querySelectorAll('.profile-subtab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        // Toggle active content
+        document.querySelectorAll('.profile-subtab-content').forEach((c) => c.classList.remove('active'));
+        const targetContent = document.querySelector(`.profile-subtab-content[data-subtab-content="${target}"]`);
+        if (targetContent) targetContent.classList.add('active');
+      });
+    });
+
+    // Pet emoji selection
     document.querySelectorAll('.mini-me-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.mini-me-option').forEach((b) => b.classList.remove('active'));
@@ -188,14 +235,15 @@ async function openProfileEditor() {
       });
     });
 
-    // Background selection
+    // Background color selection
     document.querySelectorAll('.bg-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.bg-option').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        // Live-update the preview background
-        const preview = document.querySelector('.mini-me-preview');
-        if (preview) preview.style.background = btn.dataset.bg;
+
+        // Live-update the avatar preview background
+        const preview = document.getElementById('avatar-preview');
+        if (preview) preview.style.backgroundColor = btn.dataset.bg;
       });
     });
 
@@ -220,7 +268,7 @@ async function openProfileEditor() {
         uploadBtn.textContent = '올리는 중...';
 
         try {
-          // Compress before upload (same as photos, smaller target)
+          // Compress before upload (same helper as photo album)
           const compressed = await compressImage(file, 400, 0.85);
           await DotoriStorage.uploadAvatar(compressed);
           closeModal();
@@ -232,14 +280,15 @@ async function openProfileEditor() {
           console.error('Avatar upload failed:', err);
           alert('이미지를 올릴 수 없어요: ' + (err.message || ''));
           uploadBtn.disabled = false;
-          uploadBtn.textContent = '📷 이미지 올리기';
+          uploadBtn.textContent = '🖼️ 이미지 올리기';
         }
       });
     }
 
     if (clearBtn) {
       clearBtn.addEventListener('click', async () => {
-        if (!confirm('이미지를 지우고 이모지로 돌아갈까요?')) return;
+        if (!confirm('이미지를 지우고 펫 이모지로 돌아갈까요?')) return;
+
         try {
           await DotoriStorage.clearAvatar();
           closeModal();
@@ -301,7 +350,6 @@ async function openTasteEditor() {
           currently: document.getElementById('taste-currently').value.trim(),
           needs: document.getElementById('taste-needs').value.trim()
         };
-
         await DotoriStorage.updateTastes(newTastes);
         closeModal();
         const updated = await DotoriStorage.getProfile();
@@ -378,7 +426,6 @@ async function openGuestbookWriter(ownerDotoriId) {
       <label>메시지</label>
       <textarea id="guestbook-message" maxlength="200" rows="3"
         placeholder="따뜻한 한마디를 남겨주세요." class="editor-input"></textarea>
-
       <label class="checkbox-label">
         <input type="checkbox" id="guestbook-secret">
         비밀글로 남기기
@@ -401,7 +448,6 @@ async function openGuestbookWriter(ownerDotoriId) {
           closeModal();
 
           if (ownerDotoriId) {
-            const owner = await DotoriStorage.getProfileByDotoriId(ownerDotoriId);
             await renderGuestbookPreview(ownerDotoriId);
             await renderGuestbookTab(ownerDotoriId);
           } else {

@@ -2127,3 +2127,85 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
 .visit-mini-me .mini-me-image {
   border-radius: 7px;
 }
+
+/* ============================================
+ Profile Editor — sub-tab system
+ ============================================ */
+
+.profile-editor .profile-subtabs {
+  display: flex;
+  background: linear-gradient(to bottom, #FFFFFF, #F8F8F8);
+  border: 1px solid var(--border);
+  border-radius: 4px 4px 0 0;
+  margin-bottom: 0;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.profile-subtab {
+  flex: 1;
+  text-align: center;
+  padding: 9px 8px;
+  font-size: 12px;
+  color: var(--text);
+  border-right: 1px solid #EEEEEE;
+  background: transparent;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+  font-weight: normal;
+}
+
+.profile-subtab:last-child {
+  border-right: none;
+}
+
+.profile-subtab:hover {
+  background: var(--cream);
+}
+
+.profile-subtab.active {
+  background: var(--panel);
+  color: var(--pink-dark);
+  font-weight: bold;
+  box-shadow: inset 0 -2px 0 var(--pink);
+}
+
+.profile-subtab-content {
+  display: none;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 14px 12px 16px;
+  background: #FFFFFF;
+}
+
+.profile-subtab-content.active {
+  display: block;
+}
+
+/* Make the labels inside the tab content look right */
+.profile-subtab-content label {
+  display: block;
+  font-size: 11px;
+  color: var(--acorn-dark);
+  font-weight: bold;
+  margin-bottom: 6px;
+  margin-top: 12px;
+}
+
+.profile-subtab-content label:first-child {
+  margin-top: 0;
+}
+
+/* The preview box specifically for the avatar tab */
+.profile-editor .mini-me-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
