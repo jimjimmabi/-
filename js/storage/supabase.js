@@ -170,6 +170,19 @@ async function logout() {
 // ---------- Profile ----------
 
 async function getProfile() {
+  // Prefer the saved dotori_my_id — it's the real identity
+  const myId = localStorage.getItem('dotori_my_id');
+  if (myId) {
+    const { data, error } = await sb
+      .from('profiles')
+      .select('*')
+      .eq('dotori_id', myId)
+      .single();
+
+    if (!error && data) return data;
+  }
+
+  // Fallback: use the current auth user
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;
 
