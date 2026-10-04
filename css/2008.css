@@ -2030,3 +2030,27 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   flex: 1;
   min-width: 0;
 }
+
+/* ============================================
+   Birthday filter (Taste Finder)
+   ============================================ */
+
+.birthday-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.birthday-filter-label {
+  font-size: 11px;
+  color: var(--acorn-dark);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.birthday-filter-select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+}

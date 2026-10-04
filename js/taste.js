@@ -29,9 +29,15 @@ async function initTasteTab() {
       </div>
 
       <div class="taste-search" style="margin-top:8px;">
-        <input type="text" id="taste-birthday-input"
-          placeholder="🎂 생일로 찾기 (예: 03-14)"
-          class="editor-input" autocomplete="off" maxlength="5">
+        <div class="birthday-filter-row">
+          <span class="birthday-filter-label">🎂 생일로 찾기</span>
+          <select id="taste-birthday-month" class="editor-input birthday-filter-select">
+            <option value="">월</option>
+          </select>
+          <select id="taste-birthday-day" class="editor-input birthday-filter-select">
+            <option value="">일</option>
+          </select>
+        </div>
       </div>
 
       <div class="taste-filters">
@@ -47,27 +53,61 @@ async function initTasteTab() {
     </div>
   `;
 
+  // Populate the birthday dropdowns
+  const monthSel = document.getElementById('taste-birthday-month');
+  const daySel = document.getElementById('taste-birthday-day');
+
+  if (monthSel) {
+    for (let m = 1; m <= 12; m++) {
+      const monthStr = String(m).padStart(2, '0');
+      const opt = document.createElement('option');
+      opt.value = monthStr;
+      opt.textContent = `${m}월`;
+      monthSel.appendChild(opt);
+    }
+  }
+
+  if (daySel) {
+    for (let d = 1; d <= 31; d++) {
+      const dayStr = String(d).padStart(2, '0');
+      const opt = document.createElement('option');
+      opt.value = dayStr;
+      opt.textContent = `${d}일`;
+      daySel.appendChild(opt);
+    }
+  }
+
+  // Restore state from tasteBirthdayTerm (format: "MM" or "MM-DD")
+  if (monthSel && tasteBirthdayTerm) {
+    monthSel.value = tasteBirthdayTerm.split('-')[0] || '';
+  }
+  if (daySel && tasteBirthdayTerm && tasteBirthdayTerm.length === 5) {
+    daySel.value = tasteBirthdayTerm.split('-')[1] || '';
+  }
+
+  // Birthday filter wiring
+  const updateBirthdayFilter = () => {
+    const m = monthSel ? monthSel.value : '';
+    const d = daySel ? daySel.value : '';
+    if (!m) {
+      tasteBirthdayTerm = '';
+    } else if (!d) {
+      tasteBirthdayTerm = m;
+    } else {
+      tasteBirthdayTerm = `${m}-${d}`;
+    }
+    renderTasteList();
+  };
+
+  if (monthSel) monthSel.addEventListener('change', updateBirthdayFilter);
+  if (daySel) daySel.addEventListener('change', updateBirthdayFilter);
+
   // Main search input
   const searchInput = document.getElementById('taste-search-input');
   if (searchInput) {
     searchInput.value = tasteSearchTerm;
     searchInput.addEventListener('input', (e) => {
       tasteSearchTerm = e.target.value.trim().toLowerCase();
-      renderTasteList();
-    });
-  }
-
-  // Birthday search input (isolated from taste chips)
-  const birthdayInput = document.getElementById('taste-birthday-input');
-  if (birthdayInput) {
-    birthdayInput.value = tasteBirthdayTerm;
-    birthdayInput.addEventListener('input', (e) => {
-      let raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-      if (raw.length >= 3) {
-        raw = raw.slice(0, 2) + '-' + raw.slice(2);
-      }
-      e.target.value = raw;
-      tasteBirthdayTerm = raw;
       renderTasteList();
     });
   }
@@ -95,8 +135,15 @@ async function loadTasteData() {
     });
 
     const myTastes = (tasteMyProfile && tasteMyProfile.tastes) || {};
+    const myBirthday = (tasteMyProfile && tasteMyProfile.birthday) || null;
+
     tasteAllProfiles = tasteAllProfiles.map((p) => {
-      const result = DotoriStorage.calculateMatch(myTastes, p.tastes || {});
+      const result = DotoriStorage.calculateMatch(
+        myTastes,
+        p.tastes || {},
+        myBirthday,
+        p.birthday || null
+      );
       return {
         ...p,
         matchScore: result.score,
@@ -141,9 +188,17 @@ function renderTasteList() {
     });
   }
 
-  // Birthday filter (search input, isolated from taste chips)
-  if (tasteBirthdayTerm && tasteBirthdayTerm.length === 5) {
-    filtered = filtered.filter((p) => p.birthday === tasteBirthdayTerm);
+  // Birthday filter (dropdown — month only, or month + day)
+  if (tasteBirthdayTerm) {
+    if (tasteBirthdayTerm.length === 5) {
+      // Exact date match: MM-DD
+      filtered = filtered.filter((p) => p.birthday === tasteBirthdayTerm);
+    } else if (tasteBirthdayTerm.length === 2) {
+      // Month only match
+      filtered = filtered.filter((p) => {
+        return p.birthday && p.birthday.startsWith(tasteBirthdayTerm + '-');
+      });
+    }
   }
 
   if (tasteActiveFilter !== 'all') {
