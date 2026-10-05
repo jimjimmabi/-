@@ -328,21 +328,6 @@ function initHeaderButtons() {
   if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
 }
 
-// ---------- Time Capsule ----------
-
-function initTimeCapsule() {
-  const link = document.getElementById('time-capsule-link');
-  if (!link) return;
-
-  link.addEventListener('click', () => {
-    showModal('📼 저장된 시간',
-      `이 페이지는 2008년 3월 14일에 저장되었습니다.<br><br>
-      <span style="color:#888; font-size:11px;">시간 여행 기능은 나중에 완성됩니다.</span>`,
-      [{ label: '확인', primary: true, onClick: closeModal }]
-    );
-  });
-}
-
 // ---------- Utilities ----------
 
 function escapeHtml(str) {
