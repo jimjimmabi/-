@@ -260,20 +260,12 @@ async function applyMyTheme() {
       applyVars(current.theme);
     }
     if (current.bg_image_url) {
-      // Image background for the margin area
       document.body.style.backgroundImage = `url("${current.bg_image_url}")`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundAttachment = 'fixed';
-      document.body.style.backgroundColor = '';
-    } else if (current.theme && current.theme['--body-bg']) {
-      // Solid color background for the margin area
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundColor = current.theme['--body-bg'];
     } else {
-      // Default gradient
       document.body.style.backgroundImage = '';
-      document.body.style.backgroundColor = '';
     }
   } catch (e) {
     console.warn('Apply theme failed:', e);

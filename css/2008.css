@@ -92,11 +92,8 @@ body {
 
 #main-site {
   max-width: 800px;
-  margin: 16px auto;
-  padding: 0;
-  background: #FFFFFF;
-  border-radius: 6px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  margin: 0 auto;
+  padding: 12px;
 }
 
 .site-header {
@@ -2861,41 +2858,4 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
     gap: 6px;
     margin-top: 8px;
     justify-content: center;
-}
-
-/* ============================================
-   Theme background — only around the main window
-   ============================================ */
-
-/* The centered site becomes a fully opaque white frame,
-   so the body background only shows in the margins. */
-#main-site {
-    background: #FFFFFF;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-    border-radius: 6px;
-    padding: 0;
-    margin-top: 16px;
-    margin-bottom: 16px;
-}
-
-/* The header and main fill the frame, and stay opaque. */
-#main-site .site-header {
-    border-radius: 6px 6px 0 0;
-}
-
-#main-site .site-main {
-    background: #FFFFFF;
-    border-radius: 0 0 6px 6px;
-}
-
-/* The panel background keeps its own cream tint from the theme
-   ONLY if you want the inner panels to stay cream. Otherwise
-   panels use whatever --cream is set to. */
-
-/* Ensure panels are fully opaque over the themed body background */
-.panel,
-.site-header,
-.site-main,
-.home-layout {
-    background-color: #FFFFFF;
 }
