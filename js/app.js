@@ -122,7 +122,7 @@ async function renderHome(profile) {
       daysEl.textContent = '🌱 오늘 숲에 왔어요';
       daysEl.classList.remove('hidden');
     } else if (days && days > 1) {
-      daysEl.textContent = `🌱 도토리숲에서 함께한 지 ${days}일`;
+      daysEl.textContent = `🌱 도토리숲에 온 지 ${days}일`;
       daysEl.classList.remove('hidden');
     } else {
       daysEl.classList.add('hidden');
@@ -508,9 +508,9 @@ async function openVisitModal(profile) {
   // Days Together for the visit modal
   const theirDays = getDaysTogether(profile.created_at);
   const theirDaysLine = theirDays === 1
-    ? `🌱 오늘 이 숲에 왔어요`
+    ? `🌱 오늘 도토리숲에 왔어요`
     : (theirDays && theirDays > 1
-        ? `🌱 ${escapeHtml(profile.nickname)}님은 이 숲에 ${theirDays}일째 살고 있어요`
+        ? `🌱 도토리숲에 온 지 ${theirDays}일 되었어요`
         : '');
 
   showModal(`🌰 ${profile.nickname}님의 숲`,
