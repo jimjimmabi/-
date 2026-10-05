@@ -359,6 +359,11 @@ function initHeaderButtons() {
 
   const notifDismissBtn = document.getElementById('notif-dismiss-btn');
   if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
+
+  const quietLink = document.getElementById('quiet-room-link');
+  if (quietLink) quietLink.addEventListener('click', () => {
+    if (typeof openQuietRoom === 'function') openQuietRoom();
+  });
 }
 
 // ---------- Utilities ----------

@@ -2678,3 +2678,25 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
   margin-top: 4px;
   letter-spacing: 0.3px;
 }
+
+/* ============================================
+   Footer: Quiet Room link
+   ============================================ */
+
+.footer-dot {
+  font-size: 10px;
+  color: #BBBBBB;
+  margin: 0 4px;
+}
+
+.quiet-room-link {
+  font-size: 10px;
+  color: #BBBBBB;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: color 0.2s;
+}
+
+.quiet-room-link:hover {
+  color: var(--acorn-dark);
+}
