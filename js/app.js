@@ -86,8 +86,10 @@ function initTabs() {
 // ---------- Home rendering ----------
 
 async function renderHome(profile) {
-  if (!profile) profile = await DotoriStorage.getProfile();
-  if (!profile) return;
+    // Apply saved theme
+    if (typeof applyMyTheme === 'function') {
+        applyMyTheme();
+    }
 
   const miniMeBox = document.getElementById('mini-me-box');
   if (miniMeBox) {
@@ -329,10 +331,10 @@ function initHeaderButtons() {
   const guestbookWriteBtn = document.getElementById('guestbook-write-btn');
   if (guestbookWriteBtn) guestbookWriteBtn.addEventListener('click', () => openGuestbookWriter());
 
-  const settingsLink = document.getElementById('settings-link');
-  if (settingsLink) settingsLink.addEventListener('click', (e) => {
+  const themeLink = document.getElementById('theme-link');
+  if (themeLink) themeLink.addEventListener('click', (e) => {
     e.preventDefault();
-    openSettings();
+    openThemeEditor();
   });
 
   const inboxLink = document.getElementById('inbox-link');
