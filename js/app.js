@@ -435,17 +435,9 @@ function initApp(profile) {
   initBGM();
   initHeaderButtons();
   initTimeCapsule();
-  if (typeof initFriendsDrawer === 'function') initFriendsDrawer();
+  initFriendsDrawer();
   initRealtimeSubscriptions();
   initNotifications();
-
-  // Apply saved theme to the whole page
-  if (typeof applyTheme === 'function') applyTheme(profile);
-
-  // Mount the mood diary sidebar on the home tab
-  if (typeof initDiarySidebar === 'function') {
-    setTimeout(() => initDiarySidebar(), 100);
-  }
 
   // Pre-render the mini-room so it's not stuck on "Loading..."
   // We defer it a tick so the DOM is fully ready.
@@ -457,12 +449,6 @@ function initApp(profile) {
       initSquareTab();
     }
   }, 100);
-
-  // Theme customizer button
-  const themeBtn = document.getElementById('theme-edit-btn');
-  if (themeBtn && typeof openThemeEditor === 'function') {
-    themeBtn.addEventListener('click', openThemeEditor);
-  }
 }
 
 // ---------- Visit Modal ----------
@@ -582,22 +568,8 @@ async function openVisitModal(profile) {
     ]
   );
 
-  // Apply their theme (accents/background) inside the modal
-  if (typeof applyTheme === 'function') {
-    // For visitor mode, we apply to a scoped wrapper, not the whole body
-    const modalContent = document.querySelector('.visit-modal');
-    if (modalContent) {
-      const accent = profile.theme_accent || null;
-      const panel = profile.theme_panel_color || null;
-      const border = profile.theme_border_color || null;
-      if (accent) {
-        modalContent.style.setProperty('--pink', accent);
-        modalContent.style.setProperty('--pink-dark', darkenHex(accent, 0.15));
-      }
-      if (panel) modalContent.style.setProperty('--panel', panel);
-      if (border) modalContent.style.setProperty('--border', border);
-    }
-  }
+  // Render their mini-room into the visit modal
+  setTimeout(async () => {
     const roomContainer = document.getElementById('visit-room-preview');
     if (roomContainer && typeof renderRoomPreview === 'function') {
       try {

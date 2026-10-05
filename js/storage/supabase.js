@@ -471,7 +471,7 @@ function getVisits() {
 async function getAllProfiles() {
   const { data, error } = await sb
     .from('profiles')
-    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, mini_me_image_url, tastes, birthday, theme_accent, theme_bg_color, theme_bg_image_url, theme_panel_color, theme_border_color, theme_preset, created_at')
+    .select('dotori_id, nickname, status_message, mini_me, mini_me_bg, mini_me_image_url, tastes, birthday, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -1301,132 +1301,6 @@ async function deletePhoto(photoId) {
   return !error;
 }
 
-// ---------- Mood Diary ----------
-async function getMoodEntriesForMonth(year, month) {
-  // month: 1-12
-  const me = await getProfile();
-  if (!me) return [];
-
-  const start = `${year}-${String(month).padStart(2, '0')}-01`;
-  const end = new Date(year, month, 0).toISOString().slice(0, 10);
-
-  const { data, error } = await sb
-    .from('mood_entries')
-    .select('*')
-    .eq('user_id', me.id)
-    .gte('entry_date', start)
-    .lte('entry_date', end)
-    .order('entry_date', { ascending: true });
-
-  if (error) return [];
-  return data;
-}
-
-async function saveMoodEntry(dateStr, emoji, note) {
-  const me = await getProfile();
-  if (!me) throw new Error('내 정보를 찾을 수 없어요');
-
-  const { data, error } = await sb
-    .from('mood_entries')
-    .upsert(
-      {
-        user_id: me.id,
-        entry_date: dateStr,
-        emoji: emoji,
-        note: note || ''
-      },
-      { onConflict: 'user_id,entry_date' }
-    )
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-async function deleteMoodEntry(dateStr) {
-  const me = await getProfile();
-  if (!me) return false;
-
-  const { error } = await sb
-    .from('mood_entries')
-    .delete()
-    .eq('user_id', me.id)
-    .eq('entry_date', dateStr);
-
-  return !error;
-}
-
-// ---------- Theme ----------
-async function saveTheme(theme) {
-  const me = await getProfile();
-  if (!me) return false;
-
-  const updates = {
-    theme_preset: theme.theme_preset || 'basic',
-    theme_accent: theme.theme_accent || null,
-    theme_bg_color: theme.theme_bg_color || null,
-    theme_bg_image_url: theme.theme_bg_image_url || null,
-    theme_panel_color: theme.theme_panel_color || null,
-    theme_border_color: theme.theme_border_color || null
-  };
-
-  const { error } = await sb
-    .from('profiles')
-    .update(updates)
-    .eq('id', me.id);
-
-  return !error;
-}
-
-async function uploadBackground(file) {
-  const me = await getProfile();
-  if (!me) throw new Error('내 정보를 찾을 수 없어요');
-
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const filename = `${me.id}/bg-${Date.now()}.${ext}`;
-
-  const { error: uploadError } = await sb.storage
-    .from('backgrounds')
-    .upload(filename, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: file.type
-    });
-
-  if (uploadError) throw uploadError;
-
-  const { data: urlData } = sb.storage
-    .from('backgrounds')
-    .getPublicUrl(filename);
-
-  return urlData.publicUrl;
-}
-
-async function clearBackground() {
-  const me = await getProfile();
-  if (!me) return false;
-  if (!me.theme_bg_image_url) return true;
-
-  // Try to delete the old file from storage (best-effort)
-  try {
-    const url = new URL(me.theme_bg_image_url);
-    const path = url.pathname.split('/backgrounds/')[1];
-    if (path) {
-      await sb.storage.from('backgrounds').remove([path]);
-    }
-  } catch (e) {
-    console.warn('Could not delete old background file:', e);
-  }
-
-  const { error } = await sb
-    .from('profiles')
-    .update({ theme_bg_image_url: null })
-    .eq('id', me.id);
-
-  return !error;
-}
-
 // ---------- Realtime ----------
 
 function subscribeToNotes(callback) {
@@ -1521,11 +1395,6 @@ window.DotoriSupabase = {
 
   uploadPhoto, getMyPhotos, getPhotosByDotoriId, deletePhoto,
   uploadAvatar, clearAvatar,
-
-  // Mood Diary
-  getMoodEntriesForMonth, saveMoodEntry, deleteMoodEntry,
-  // Theme
-  saveTheme, uploadBackground, clearBackground,
 
   subscribeToNotes, subscribeToFriendRequests, subscribeToPhotos,
   subscribeToMyNotes, subscribeToReactions, subscribeToGroupEntries
