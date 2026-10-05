@@ -111,6 +111,9 @@
               <button id="profile-edit-btn" class="small-btn" style="margin-top:8px; width:100%;">
                 프로필 수정
               </button>
+              <button id="theme-edit-btn" class="small-btn" style="margin-top:6px; width:100%;">
+                🎨 테마 꾸미기
+              </button>
             </div>
 
             <div class="panel counter-panel">
@@ -124,11 +127,15 @@
               </div>
             </div>
 
-            <div class="panel ilchon-panel">
-              <div class="panel-title">일촌</div>
-              <div class="ilchon-count"><span id="ilchon-count">0</span>명</div>
-            </div>
+          <div class="panel ilchon-panel">
+            <div class="panel-title">일촌</div>
+            <div class="ilchon-count"><span id="ilchon-count">0</span>명</div>
           </div>
+
+          <!-- ===== Mood Diary sidebar (mounted by diary.js) ===== -->
+          <div id="diary-sidebar"></div>
+          <!-- ===== END Mood Diary ===== -->
+        </div>
 
           <div class="home-center">
             <div class="panel bgm-panel">
@@ -284,6 +291,8 @@
 <script src="js/bgm.js"></script>
 <script src="js/timecapsule.js"></script>
 <script src="js/quiet.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/diary.js"></script>
 <script src="js/notifications.js"></script>
 <script src="js/auth.js"></script>
 </body>
