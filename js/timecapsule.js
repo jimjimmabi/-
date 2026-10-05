@@ -1,4 +1,3 @@
-
 // ============================================
 // 도토리숲 — Time Capsule (2008 ↔ 2026)
 // ============================================
@@ -91,10 +90,13 @@ function applyTimeCapsuleState(state, options) {
     localStorage.setItem(TC_STATE_KEY, state);
   } catch (e) {}
 
-  if (state === '2026') {
-    document.body.classList.add('time-capsule-2026');
-  } else {
-    document.body.classList.remove('time-capsule-2026');
+  const mainSiteEl = document.getElementById('main-site');
+  if (mainSiteEl) {
+    if (state === '2026') {
+      mainSiteEl.classList.add('time-capsule-2026');
+    } else {
+      mainSiteEl.classList.remove('time-capsule-2026');
+    }
   }
 
   const dateEl = document.getElementById('header-date');

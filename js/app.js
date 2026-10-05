@@ -328,6 +328,8 @@ function initHeaderButtons() {
   if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
 }
 
+
+
 // ---------- Utilities ----------
 
 function escapeHtml(str) {

@@ -2,9 +2,10 @@
    도토리숲 — Time Capsule (2026 mode)
    ============================================ */
 
-body.time-capsule-2026 {
+#main-site.time-capsule-2026 {
   filter: saturate(0.35) brightness(0.96);
   transition: filter 1.2s ease;
+  min-height: 100vh;
 }
 
 body.time-capsule-animating {
