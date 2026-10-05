@@ -4,6 +4,24 @@
 
 let friendRequestChannel = null;
 
+// ---------- Days Together helper ----------
+
+function getDaysTogether(createdAt) {
+  if (!createdAt) return null;
+  try {
+    const start = new Date(createdAt);
+    const now = new Date();
+    // Reset both to midnight so we count whole days
+    start.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    const diffMs = now - start;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, diffDays);
+  } catch (e) {
+    return null;
+  }
+}
+
 // ---------- Modal ----------
 
 function showModal(title, bodyHtml, buttons) {
@@ -93,6 +111,21 @@ async function renderHome(profile) {
       birthdayEl.classList.remove('hidden');
     } else {
       birthdayEl.classList.add('hidden');
+    }
+  }
+
+  // Days Together display (home page)
+  const daysEl = document.getElementById('mini-me-days');
+  if (daysEl) {
+    const days = getDaysTogether(profile.created_at);
+    if (days === 1) {
+      daysEl.textContent = '🌱 오늘 숲에 왔어요';
+      daysEl.classList.remove('hidden');
+    } else if (days && days > 1) {
+      daysEl.textContent = `🌱 도토리숲에서 함께한 지 ${days}일`;
+      daysEl.classList.remove('hidden');
+    } else {
+      daysEl.classList.add('hidden');
     }
   }
 
@@ -328,8 +361,6 @@ function initHeaderButtons() {
   if (notifDismissBtn) notifDismissBtn.addEventListener('click', dismissNotificationBanner);
 }
 
-
-
 // ---------- Utilities ----------
 
 function escapeHtml(str) {
@@ -474,6 +505,14 @@ async function openVisitModal(profile) {
     friendBtnHtml = `<button class="small-btn" id="visit-friend-btn">일촌 신청</button>`;
   }
 
+  // Days Together for the visit modal
+  const theirDays = getDaysTogether(profile.created_at);
+  const theirDaysLine = theirDays === 1
+    ? `🌱 오늘 이 숲에 왔어요`
+    : (theirDays && theirDays > 1
+        ? `🌱 ${escapeHtml(profile.nickname)}님은 이 숲에 ${theirDays}일째 살고 있어요`
+        : '');
+
   showModal(`🌰 ${profile.nickname}님의 숲`,
     `<div class="visit-modal">
       <div class="visit-modal-header">
@@ -489,6 +528,7 @@ async function openVisitModal(profile) {
             const parts = profile.birthday.split('-');
             return `<div class="visit-birthday">🎂 ${parseInt(parts[0])}월 ${parseInt(parts[1])}일</div>`;
           })() : ''}
+          ${theirDaysLine ? `<div class="visit-days">${theirDaysLine}</div>` : ''}
         </div>
       </div>
 

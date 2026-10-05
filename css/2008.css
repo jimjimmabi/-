@@ -2656,3 +2656,25 @@ textarea.editor-input { resize: vertical; min-height: 60px; }
     transform: translateX(0);
   }
 }
+
+/* ============================================
+   Days Together
+   ============================================ */
+
+.mini-me-days {
+  font-size: 10px;
+  color: var(--acorn-dark);
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+
+.mini-me-days.hidden {
+  display: none;
+}
+
+.visit-days {
+  font-size: 10px;
+  color: var(--acorn-dark);
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
