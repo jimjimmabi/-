@@ -378,35 +378,6 @@ async function saveRoom(room) {
   return saveMyRoom(room);
 }
 
-async function getMyTheme() {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return { theme: {}, bg_image_url: null };
-  const { data, error } = await sb
-    .from('rooms')
-    .select('theme, bg_image_url')
-    .eq('user_id', user.id)
-    .single();
-  if (error) return { theme: {}, bg_image_url: null };
-  return {
-    theme: data.theme || {},
-    bg_image_url: data.bg_image_url || null
-  };
-}
-
-async function saveMyTheme(theme, bgImageUrl) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return false;
-  const { error } = await sb
-    .from('rooms')
-    .update({
-      theme: theme || {},
-      bg_image_url: bgImageUrl || null,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', user.id);
-  return !error;
-}
-
 // ---------- Guestbook ----------
 
 async function getGuestbook(ownerDotoriId) {
@@ -1407,7 +1378,6 @@ window.DotoriSupabase = {
   isNicknameTaken, suggestNicknames,
   getTastes, updateTastes,
   getRoom, getRoomByDotoriId, saveMyRoom, saveMyBGM, saveRoom,
-  getMyTheme, saveMyTheme,
   getGuestbook, addGuestbookEntry, deleteGuestbookEntry, replyToGuestbookEntry,
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,
