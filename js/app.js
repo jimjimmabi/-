@@ -59,28 +59,39 @@ function closeModal() {
 // ---------- Tab switching ----------
 
 function initTabs() {
-  const tabs = document.querySelectorAll('.site-tabs .tab');
-  const contents = document.querySelectorAll('.tab-content');
+    const tabs = document.querySelectorAll('.site-tabs .tab');
+    const contents = document.querySelectorAll('.tab-content');
 
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', (e) => {
-      e.preventDefault();
-      const target = tab.dataset.tab;
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = tab.dataset.tab;
 
-      tabs.forEach((t) => t.classList.remove('active'));
-      contents.forEach((c) => c.classList.remove('active'));
+            tabs.forEach((t) => t.classList.remove('active'));
+            contents.forEach((c) => c.classList.remove('active'));
 
-      tab.classList.add('active');
-      const targetEl = document.getElementById('tab-' + target);
-      if (targetEl) targetEl.classList.add('active');
+            tab.classList.add('active');
+            const targetEl = document.getElementById('tab-' + target);
+            if (targetEl) targetEl.classList.add('active');
 
-      if (target === 'guestbook') renderGuestbookTab();
-      if (target === 'taste') initTasteTab();
-      if (target === 'album') initPhotoTab();
-      if (target === 'room') initMiniRoomTab();
-      if (target === 'plaza') initSquareTab();
+            // Only render on first visit to this tab
+            if (target === 'home') {
+                refreshHomeRoomPreview();
+            } else if (target === 'guestbook' && !targetEl.dataset.loaded) {
+                targetEl.dataset.loaded = "true";
+                renderGuestbookTab();
+            } else if (target === 'taste' && !targetEl.dataset.loaded) {
+                targetEl.dataset.loaded = "true";
+                initTasteTab();
+            } else if (target === 'album' && !targetEl.dataset.loaded) {
+                targetEl.dataset.loaded = "true";
+                initPhotoTab();
+            } else if (target === 'room' && !targetEl.dataset.loaded) {
+                targetEl.dataset.loaded = "true";
+                initMiniRoomTab();
+            }
+        });
     });
-  });
 }
 
 // ---------- Home rendering ----------
