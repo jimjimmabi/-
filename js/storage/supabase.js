@@ -170,7 +170,6 @@ async function logout() {
 // ---------- Profile ----------
 
 async function getProfile() {
-  // Prefer the saved dotori_my_id — it's the real identity
   const myId = localStorage.getItem('dotori_my_id');
   if (myId) {
     const { data, error } = await sb
@@ -182,7 +181,6 @@ async function getProfile() {
     if (!error && data) return data;
   }
 
-  // Fallback: use the current auth user
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;
 
@@ -262,11 +260,8 @@ async function suggestNicknames(base, count) {
   const suggestions = [];
   const seen = new Set();
 
-  // Strategy 1: cute seasonal/forest words after the name
   const suffixes = ['_숲', '_forest', '_2008', '_acorn', '님', '_🌰'];
 
-  // Strategy 2: numbers 1-99 appended
-  // Strategy 3: with a small dot between
   const templates = [
     (b) => `${b}${Math.floor(Math.random() * 89) + 10}`,
     (b) => `${b}${Math.floor(Math.random() * 899) + 100}`,
@@ -275,12 +270,10 @@ async function suggestNicknames(base, count) {
     (b) => `${b}_${Math.floor(Math.random() * 89) + 10}`
   ];
 
-  // Try up to 30 attempts to find `count` free nicknames
   for (let attempt = 0; attempt < 30 && suggestions.length < count; attempt++) {
     const template = templates[Math.floor(Math.random() * templates.length)];
     let candidate = template(cleanBase);
 
-    // Trim if too long (12 char max)
     if (candidate.length > 12) candidate = candidate.slice(0, 12);
 
     if (seen.has(candidate)) continue;
@@ -289,9 +282,7 @@ async function suggestNicknames(base, count) {
     try {
       const taken = await isNicknameTaken(candidate);
       if (!taken) suggestions.push(candidate);
-    } catch (e) {
-      // ignore individual lookup errors
-    }
+    } catch (e) {}
   }
 
   return suggestions;
@@ -530,7 +521,6 @@ function calculateMatch(myTastes, theirTastes, myBirthday, theirBirthday) {
     }
   }
 
-  // Birthday matching
   if (myBirthday && theirBirthday) {
     if (myBirthday === theirBirthday) {
       score += 15;
@@ -586,31 +576,74 @@ async function getNoteById(noteId) {
   return data;
 }
 
-async function getInbox() {
+// FIXED: added getConversationWith — used by getInbox and friends.js
+async function getConversationWith(dotoriId) {
   const me = await getProfile();
-  if (!me) return [];
+  if (!me) return null;
+
+  const other = await getProfileByDotoriId(dotoriId);
+  if (!other) return null;
 
   const { data, error } = await sb
     .from('notes')
     .select('*')
-    .eq('recipient_id', me.id)
-    .order('created_at', { ascending: false });
+    .or(`and(sender_id.eq.${me.id},recipient_id.eq.${other.id}),and(sender_id.eq.${other.id},recipient_id.eq.${me.id})`)
+    .order('created_at', { ascending: true });
 
-  if (error) return [];
+  if (error) { console.error('getConversationWith error:', error); return null; }
 
-  const senderIds = [...new Set(data.map((n) => n.sender_id))];
-  const { data: senders } = await sb
-    .from('profiles')
-    .select('id, dotori_id, nickname, mini_me, mini_me_image_url')
-    .in('id', senderIds);
+  const noteIds = data.map(n => n.id);
+  const reactionsByNote = await getReactionsForNotes(noteIds);
 
-  const map = {};
-  (senders || []).forEach((s) => { map[s.id] = s; });
-
-  return data.map((n) => ({
+  const notes = data.map(n => ({
     ...n,
-    sender: map[n.sender_id] || { nickname: '알 수 없음', mini_me: '🌰' }
+    direction: n.sender_id === me.id ? 'sent' : 'received',
+    reactions: reactionsByNote[n.id] || []
   }));
+
+  return {
+    dotori_id: other.dotori_id,
+    nickname: other.nickname,
+    mini_me: other.mini_me,
+    mini_me_image_url: other.mini_me_image_url,
+    notes: notes,
+    unread: notes.filter(n => n.direction === 'received' && !n.is_read).length,
+    lastAt: notes.length ? new Date(notes[notes.length - 1].created_at).getTime() : 0
+  };
+}
+
+// FIXED: uses `sb` (was `supabase`), and calls getConversationWith
+async function getInbox() {
+  const me = await getProfile();
+  if (!me) return [];
+
+  const { data: noteData, error: noteError } = await sb
+    .from('notes')
+    .select('sender_id, recipient_id')
+    .or(`sender_id.eq.${me.id},recipient_id.eq.${me.id}`);
+
+  if (noteError) { console.error('getInbox (notes) error:', noteError); return []; }
+
+  const userIds = new Set();
+  noteData.forEach(note => {
+    if (note.sender_id !== me.id) userIds.add(note.sender_id);
+    if (note.recipient_id !== me.id) userIds.add(note.recipient_id);
+  });
+
+  if (userIds.size === 0) return [];
+
+  const { data: profiles, error: profileError } = await sb
+    .from('profiles')
+    .select('*')
+    .in('id', Array.from(userIds));
+
+  if (profileError) { console.error('getInbox (profiles) error:', profileError); return []; }
+
+  const conversations = await Promise.all(
+    profiles.map(p => getConversationWith(p.dotori_id))
+  );
+
+  return conversations.filter(Boolean).sort((a, b) => b.lastAt - a.lastAt);
 }
 
 async function getSentNotes() {
@@ -1155,6 +1188,7 @@ async function deleteGroupEntry(entryId) {
 }
 
 // ---------- Photos ----------
+
 async function uploadAvatar(file) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error('로그인이 필요해요');
@@ -1192,7 +1226,6 @@ async function clearAvatar() {
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
-  // Try to delete the old file from storage (best-effort)
   if (me.mini_me_image_url) {
     try {
       const url = new URL(me.mini_me_image_url);
@@ -1382,7 +1415,7 @@ window.DotoriSupabase = {
   bumpVisit, getVisits,
   getAllProfiles, calculateMatch,
 
-  sendNote, getNoteById, getInbox, getSentNotes, getUnreadCount, markNoteRead,
+  sendNote, getNoteById, getInbox, getConversationWith, getSentNotes, getUnreadCount, markNoteRead,
 
   getReactionsForNotes, addReaction, removeReaction, toggleReaction,
 
