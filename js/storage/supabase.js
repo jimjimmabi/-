@@ -13,6 +13,18 @@ const sb = window.supabase.createClient(
 const MAX_ILCHON = 12;
 const MAX_GROUP_MEMBERS = 8;
 
+async function getMyId() {
+  const myDotoriId = localStorage.getItem('dotori_my_id');
+  if (!myDotoriId) return null;
+  const { data, error } = await sb
+    .from('profiles')
+    .select('id')
+    .eq('dotori_id', myDotoriId)
+    .single();
+  if (error || !data) return null;
+  return data.id;
+}
+
 // ---------- Auth ----------
 
 async function createAcorn(nickname) {
@@ -217,13 +229,13 @@ async function getProfileByDotoriId(dotoriId) {
 }
 
 async function updateProfile(updates) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
+  const myId = await getMyId();
+  if (!myId) return null;
 
   const { data, error } = await sb
     .from('profiles')
     .update(updates)
-    .eq('id', user.id)
+    .eq('id', myId)
     .select()
     .single();
 
@@ -305,13 +317,13 @@ async function updateTastes(tastes) {
 // ---------- Room (Mini-Room) ----------
 
 async function getRoom() {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
+  const myId = await getMyId();
+  if (!myId) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
 
   const { data, error } = await sb
     .from('rooms')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', myId)
     .single();
 
   if (error) return { layout: {}, wallpaper: 'default', floor: 'default', bgm_choice: null };
@@ -333,8 +345,8 @@ async function getRoomByDotoriId(dotoriId) {
 }
 
 async function saveMyRoom(room) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return false;
+  const myId = await getMyId();
+  if (!myId) return false;
 
   const { error } = await sb
     .from('rooms')
@@ -345,14 +357,14 @@ async function saveMyRoom(room) {
       bgm_choice: room.bgm_choice || null,
       updated_at: new Date().toISOString()
     })
-    .eq('user_id', user.id);
+    .eq('user_id', myId);
 
   return !error;
 }
 
 async function saveMyBGM(choiceId) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return false;
+  const myId = await getMyId();
+  if (!myId) return false;
 
   const { error } = await sb
     .from('rooms')
@@ -360,7 +372,7 @@ async function saveMyBGM(choiceId) {
       bgm_choice: choiceId || null,
       updated_at: new Date().toISOString()
     })
-    .eq('user_id', user.id);
+    .eq('user_id', myId);
 
   return !error;
 }
@@ -379,9 +391,9 @@ async function getGuestbook(ownerDotoriId) {
     if (!owner) return [];
     ownerId = owner.id;
   } else {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return [];
-    ownerId = user.id;
+    const myId = await getMyId();
+    if (!myId) return [];
+    ownerId = myId;
   }
 
   const { data, error } = await sb
@@ -395,9 +407,6 @@ async function getGuestbook(ownerDotoriId) {
 }
 
 async function addGuestbookEntry(entry, ownerDotoriId) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
-
   const me = await getProfile();
   if (!me) return null;
 
@@ -537,9 +546,6 @@ function calculateMatch(myTastes, theirTastes, myBirthday, theirBirthday) {
 // ---------- Notes (쪽지) ----------
 
 async function sendNote(recipientDotoriId, message, replyToId) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('로그인이 필요해요');
-
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
@@ -1190,9 +1196,6 @@ async function deleteGroupEntry(entryId) {
 // ---------- Photos ----------
 
 async function uploadAvatar(file) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('로그인이 필요해요');
-
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
@@ -1250,9 +1253,6 @@ async function clearAvatar() {
 }
 
 async function uploadPhoto(file, caption) {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('로그인이 필요해요');
-
   const me = await getProfile();
   if (!me) throw new Error('내 정보를 찾을 수 없어요');
 
