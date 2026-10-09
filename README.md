@@ -4,7 +4,7 @@
 > **광고도, 알고리즘도, 팔로워 수도 없이.**
 > **그냥, 외로운 사람들이 서로를 찾는 곳.**
 
-**🌐 https://jimjimmabi.github.io/-/**
+**🌐https://jimjimmabi.github.io/Dotorisuop/**
 
 ---
 
